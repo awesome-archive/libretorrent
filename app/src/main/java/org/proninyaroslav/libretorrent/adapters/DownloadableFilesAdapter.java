@@ -20,7 +20,8 @@
 package org.proninyaroslav.libretorrent.adapters;
 
 import android.content.Context;
-import android.support.v7.widget.RecyclerView;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
 import android.text.format.Formatter;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -58,7 +59,7 @@ public class DownloadableFilesAdapter
     }
 
     @Override
-    public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType)
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType)
     {
         View v = LayoutInflater.from(parent.getContext()).inflate(rowLayout, parent, false);
 
@@ -66,18 +67,16 @@ public class DownloadableFilesAdapter
     }
 
     @Override
-    public void onBindViewHolder(final ViewHolder holder, final int position)
+    public void onBindViewHolder(@NonNull final ViewHolder holder, final int position)
     {
         final BencodeFileTree file = files.get(position);
 
         holder.fileName.setText(file.getName());
 
-        if (file.getType() == FileNode.Type.DIR) {
+        if (file.getType() == FileNode.Type.DIR)
             holder.fileIcon.setImageResource(R.drawable.ic_folder_grey600_24dp);
-
-        } else if (file.getType() == FileNode.Type.FILE) {
+        else if (file.getType() == FileNode.Type.FILE)
             holder.fileIcon.setImageResource(R.drawable.ic_file_grey600_24dp);
-        }
 
         if (file.getName().equals(BencodeFileTree.PARENT_DIR)) {
             holder.fileSelected.setVisibility(View.GONE);
@@ -107,20 +106,14 @@ public class DownloadableFilesAdapter
             this.files = files;
             itemView.setOnClickListener(this);
 
-            fileName = (TextView) itemView.findViewById(R.id.file_name);
-            fileSize = (TextView) itemView.findViewById(R.id.file_size);
-            fileIcon = (ImageView) itemView.findViewById(R.id.file_icon);
-            fileSelected = (CheckBox) itemView.findViewById(R.id.file_selected);
-            fileSelected.setOnClickListener(new View.OnClickListener()
-            {
-                @Override
-                public void onClick(View v)
-                {
-                    if (listener != null) {
-                        listener.onItemCheckedChanged(ViewHolder.this.files.get(getAdapterPosition()),
-                                                      fileSelected.isChecked());
-                    }
-                }
+            fileName = itemView.findViewById(R.id.file_name);
+            fileSize = itemView.findViewById(R.id.file_size);
+            fileIcon = itemView.findViewById(R.id.file_icon);
+            fileSelected = itemView.findViewById(R.id.file_selected);
+            fileSelected.setOnClickListener((View v) -> {
+                if (listener != null)
+                    listener.onItemCheckedChanged(ViewHolder.this.files.get(getAdapterPosition()),
+                                                  fileSelected.isChecked());
             });
         }
 

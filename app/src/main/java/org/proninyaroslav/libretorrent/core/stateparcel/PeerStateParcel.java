@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016, 2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -21,10 +21,12 @@ package org.proninyaroslav.libretorrent.core.stateparcel;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import androidx.annotation.NonNull;
 
-import com.frostwire.jlibtorrent.TorrentStatus;
-import com.frostwire.jlibtorrent.swig.bitfield;
-import com.frostwire.jlibtorrent.swig.peer_info;
+import org.libtorrent4j.PieceIndexBitfield;
+import org.libtorrent4j.TorrentStatus;
+
+import org.proninyaroslav.libretorrent.core.AdvancedPeerInfo;
 
 /*
  * The class provides a package model with information
@@ -41,8 +43,8 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
     public int connectionType;
     public int port;
     public int progress;
-    public int payloadDownSpeed;
-    public int payloadUpSpeed;
+    public int downSpeed;
+    public int upSpeed;
 
     public class ConnectionType
     {
@@ -51,27 +53,27 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
         public static final int UTP = 2;
     }
 
-    public PeerStateParcel(peer_info peer, TorrentStatus torrentStatus)
+    public PeerStateParcel(AdvancedPeerInfo peer, TorrentStatus torrentStatus)
     {
-        super(peer.getIp().address().to_string());
+        super(peer.ip());
 
-        ip = peer.getIp().address().to_string();
-        client = peer.getClient();
-        totalDownload = peer.getTotal_download();
-        totalUpload = peer.getTotal_upload();
+        ip = peer.ip();
+        client = peer.client();
+        totalDownload = peer.totalDownload();
+        totalUpload = peer.totalUpload();
         relevance = calcRelevance(peer, torrentStatus);
         connectionType = getConnectionType(peer);
-        port = peer.getIp().port();
-        progress = (int) (peer.getProgress() * 100);
-        payloadDownSpeed = peer.getPayload_down_speed();
-        payloadUpSpeed = peer.getPayload_up_speed();
+        port = peer.port();
+        progress = (int) (peer.progress() * 100);
+        downSpeed = peer.downSpeed();
+        upSpeed = peer.upSpeed();
     }
 
     public PeerStateParcel(String ip, String client,
                            long totalDownload, long totalUpload,
                            double relevance, int connectionType,
                            int port, int progress,
-                           int payloadDownSpeed, int payloadUpSpeed)
+                           int downSpeed, int upSpeed)
     {
         super(ip);
 
@@ -83,8 +85,8 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
         this.connectionType = connectionType;
         this.port = port;
         this.progress = progress;
-        this.payloadDownSpeed = payloadDownSpeed;
-        this.payloadUpSpeed = payloadUpSpeed;
+        this.downSpeed = downSpeed;
+        this.upSpeed = upSpeed;
     }
 
     public PeerStateParcel(Parcel source)
@@ -99,51 +101,41 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
         connectionType = source.readInt();
         port = source.readInt();
         progress = source.readInt();
-        payloadDownSpeed = source.readInt();
-        payloadUpSpeed = source.readInt();
+        downSpeed = source.readInt();
+        upSpeed = source.readInt();
     }
 
-    private int getConnectionType(peer_info peer)
+    private int getConnectionType(AdvancedPeerInfo peer)
     {
-        if ((peer.getFlags() & peer_info.peer_flags_t.utp_socket.swigValue()) > 0) {
+        if (peer.isUtp())
             return ConnectionType.UTP;
+
+        switch (peer.connectionType()) {
+            case WEB_SEED:
+            case HTTP_SEED:
+                return ConnectionType.WEB;
+            default:
+                return ConnectionType.BITTORRENT;
         }
-
-        int connection;
-        int type = peer.getConnection_type();
-
-        if (type == peer_info.connection_type_t.standard_bittorrent.swigValue()) {
-            connection = ConnectionType.BITTORRENT;
-        } else {
-            connection = ConnectionType.WEB;
-        }
-
-        return connection;
     }
 
-    private double calcRelevance(peer_info peer, TorrentStatus torrentStatus)
+    private double calcRelevance(AdvancedPeerInfo peer, TorrentStatus torrentStatus)
     {
-        bitfield allPieces = torrentStatus.pieces().swig();
-        bitfield peerPieces = peer.getPieces();
+        double relevance = 0.0;
+        PieceIndexBitfield allPieces = torrentStatus.pieces();
+        PieceIndexBitfield peerPieces = peer.pieces();
 
         int remoteHaves = 0;
         int localMissing = 0;
-
         for (int i = 0; i < allPieces.size(); i++) {
-            if (!allPieces.get_bit(i)) {
+            if (!allPieces.getBit(i)) {
                 ++localMissing;
-
-                if (peerPieces.get_bit(i)) {
+                if (peerPieces.getBit(i))
                     ++remoteHaves;
-                }
             }
         }
-
-        double relevance = 0.0;
-
-        if (localMissing != 0) {
+        if (localMissing != 0)
             relevance = (double) remoteHaves / (double) localMissing;
-        }
 
         return relevance;
     }
@@ -167,8 +159,8 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
         dest.writeInt(connectionType);
         dest.writeInt(port);
         dest.writeInt(progress);
-        dest.writeInt(payloadDownSpeed);
-        dest.writeInt(payloadUpSpeed);
+        dest.writeInt(downSpeed);
+        dest.writeInt(upSpeed);
     }
 
     public static final Parcelable.Creator<PeerStateParcel> CREATOR =
@@ -188,7 +180,7 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
             };
 
     @Override
-    public int compareTo(PeerStateParcel another)
+    public int compareTo(@NonNull PeerStateParcel another)
     {
         return ip.compareTo(another.ip);
     }
@@ -207,8 +199,8 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
         result = prime * result + connectionType;
         result = prime * result + port;
         result = prime * result + progress;
-        result = prime * result + payloadDownSpeed;
-        result = prime * result + payloadUpSpeed;
+        result = prime * result + downSpeed;
+        result = prime * result + upSpeed;
 
         return result;
     }
@@ -216,13 +208,11 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
     @Override
     public boolean equals(Object o)
     {
-        if (!(o instanceof PeerStateParcel)) {
+        if (!(o instanceof PeerStateParcel))
             return false;
-        }
 
-        if (o == this) {
+        if (o == this)
             return true;
-        }
 
         PeerStateParcel state = (PeerStateParcel) o;
 
@@ -234,8 +224,8 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
                 connectionType == state.connectionType &&
                 port == state.port &&
                 progress == state.progress &&
-                payloadDownSpeed == state.payloadDownSpeed &&
-                payloadUpSpeed == state.payloadUpSpeed;
+                downSpeed == state.downSpeed &&
+                upSpeed == state.upSpeed;
     }
 
     @Override
@@ -250,8 +240,8 @@ public class PeerStateParcel extends AbstractStateParcel<PeerStateParcel>
                 ", connectionType='" + connectionType + '\'' +
                 ", port=" + port +
                 ", progress=" + progress +
-                ", payloadDownSpeed=" + payloadDownSpeed +
-                ", payloadUpSpeed=" + payloadUpSpeed +
+                ", downSpeed=" + downSpeed +
+                ", upSpeed=" + upSpeed +
                 '}';
     }
 }

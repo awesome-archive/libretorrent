@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -25,18 +25,25 @@ import android.content.Context;
 import org.acra.ACRA;
 import org.acra.ReportingInteractionMode;
 import org.acra.annotation.ReportsCrashes;
+import org.greenrobot.eventbus.EventBus;
+import org.proninyaroslav.libretorrent.core.utils.Utils;
 
 @ReportsCrashes(mailTo = "proninyaroslav@mail.ru",
-        mode = ReportingInteractionMode.DIALOG,
-        reportDialogClass = ErrorReportActivity.class)
+                mode = ReportingInteractionMode.DIALOG,
+                reportDialogClass = ErrorReportActivity.class)
 
 public class MainApplication extends Application
 {
+    @SuppressWarnings("unused")
+    private static final String TAG = MainApplication.class.getSimpleName();
+
     @Override
     protected void attachBaseContext(Context base)
     {
         super.attachBaseContext(base);
 
+        Utils.migrateTray2SharedPreferences(this);
         ACRA.init(this);
+        EventBus.builder().logNoSubscriberMessages(false).installDefaultEventBus();
     }
 }

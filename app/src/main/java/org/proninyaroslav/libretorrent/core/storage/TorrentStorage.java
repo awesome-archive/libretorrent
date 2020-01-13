@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -22,10 +22,12 @@ package org.proninyaroslav.libretorrent.core.storage;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
-import android.support.annotation.NonNull;
-import android.support.v4.util.ArrayMap;
+import androidx.annotation.NonNull;
+import androidx.collection.ArrayMap;
 import android.text.TextUtils;
 import android.util.Log;
+
+import org.libtorrent4j.Priority;
 
 import org.apache.commons.io.FileUtils;
 import org.proninyaroslav.libretorrent.core.Torrent;
@@ -35,7 +37,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,7 +59,10 @@ public class TorrentStorage
             DatabaseHelper.COLUMN_FILE_PRIORITIES,
             DatabaseHelper.COLUMN_IS_SEQUENTIAL,
             DatabaseHelper.COLUMN_IS_FINISHED,
-            DatabaseHelper.COLUMN_IS_PAUSED
+            DatabaseHelper.COLUMN_IS_PAUSED,
+            DatabaseHelper.COLUMN_DOWNLOADING_METADATA,
+            DatabaseHelper.COLUMN_DATETIME,
+            DatabaseHelper.COLUMN_ERROR
     };
 
     private Context context;
@@ -76,31 +80,38 @@ public class TorrentStorage
         this.context = context;
     }
 
-    public boolean add(Torrent torrent, String pathToTorrent, boolean deleteTorrentFile) throws Exception
+    public boolean add(Torrent torrent, String pathToTorrent, boolean deleteFile) throws Throwable
     {
-        if (pathToTorrent == null) {
-            return false;
-        }
-
-        String newPath = TorrentUtils.copyTorrent(
-                context,
-                torrent.getId(),
-                pathToTorrent);
-
-        if (newPath == null) {
-            return false;
-        }
-
-        if (deleteTorrentFile) {
+        String newPath = TorrentUtils.torrentToDataDir(context, torrent.getId(), pathToTorrent);
+        if (deleteFile) {
             try {
-                FileUtils.forceDelete(new File(torrent.getTorrentFilePath()));
-
-            } catch (IOException e) {
+                FileUtils.forceDelete(new File(pathToTorrent));
+            } catch (Exception e) {
                 Log.w(TAG, "Could not delete torrent file: ", e);
             }
         }
+        if (newPath == null || newPath.isEmpty())
+            return false;
+        torrent.setSource(newPath);
 
-        torrent.setTorrentFilePath(newPath);
+        return insert(torrent) >= 0;
+    }
+
+    public boolean add(Torrent torrent, byte[] bencode) throws Throwable
+    {
+        String newPath = TorrentUtils.torrentToDataDir(context, torrent.getId(), bencode);
+        if (newPath == null || newPath.isEmpty())
+            throw new IOException("Unable to create file");
+        torrent.setSource(newPath);
+
+        return insert(torrent) >= 0;
+    }
+
+    public boolean add(Torrent torrent) throws Throwable
+    {
+        if (!TorrentUtils.torrentDataExists(context, torrent.getId()))
+            if (TorrentUtils.makeTorrentDataDir(context, torrent.getId()) == null)
+                throw new IOException("Unable to create dir");
 
         return insert(torrent) >= 0;
     }
@@ -111,57 +122,75 @@ public class TorrentStorage
 
         values.put(DatabaseHelper.COLUMN_TORRENT_ID, torrent.getId());
         values.put(DatabaseHelper.COLUMN_NAME, torrent.getName());
-        values.put(DatabaseHelper.COLUMN_PATH_TO_TORRENT, torrent.getTorrentFilePath());
+        values.put(DatabaseHelper.COLUMN_PATH_TO_TORRENT, torrent.getSource());
         values.put(DatabaseHelper.COLUMN_PATH_TO_DOWNLOAD, torrent.getDownloadPath());
-        values.put(DatabaseHelper.COLUMN_FILE_PRIORITIES, integerListToString(torrent.getFilePriorities()));
+        values.put(DatabaseHelper.COLUMN_FILE_PRIORITIES, prioritiesToString(torrent.getFilePriorities()));
         values.put(DatabaseHelper.COLUMN_IS_SEQUENTIAL, (torrent.isSequentialDownload() ? 1 : 0));
         values.put(DatabaseHelper.COLUMN_IS_FINISHED, (torrent.isFinished() ? 1 : 0));
         values.put(DatabaseHelper.COLUMN_IS_PAUSED, (torrent.isPaused() ? 1 : 0));
+        values.put(DatabaseHelper.COLUMN_DOWNLOADING_METADATA, (torrent.isDownloadingMetadata() ? 1 : 0));
+        values.put(DatabaseHelper.COLUMN_DATETIME, torrent.getDateAdded());
+        values.put(DatabaseHelper.COLUMN_ERROR, torrent.getError());
 
         return ConnectionManager.getDatabase(context).insert(DatabaseHelper.TORRENTS_TABLE, null, values);
     }
 
-    public void replace(Torrent torrent, String pathToTorrent, boolean deleteTorrentFile) throws Exception
+    public void replace(Torrent torrent, byte[] bencode) throws Throwable
     {
-        if (pathToTorrent == null) {
+        if (torrent == null || bencode == null)
             return;
-        }
 
-        String newPath = TorrentUtils.copyTorrent(
+        String newPath = TorrentUtils.torrentToDataDir(context, torrent.getId(), bencode);
+        if (newPath == null)
+            return;
+        torrent.setSource(newPath);
+        update(torrent, false);
+    }
+
+    public void replace(Torrent torrent, boolean deleteFile) throws Throwable
+    {
+        if (torrent == null || torrent.getSource() == null)
+            return;
+
+        String newPath = TorrentUtils.torrentToDataDir(
                 context,
                 torrent.getId(),
-                pathToTorrent);
-
-        if (newPath == null) {
-            return;
-        }
-
-        if (deleteTorrentFile) {
+                torrent.getSource());
+        if (deleteFile) {
             try {
-                FileUtils.forceDelete(new File(torrent.getTorrentFilePath()));
-
-            } catch (IOException e) {
+                FileUtils.forceDelete(new File(torrent.getSource()));
+            } catch (Exception e) {
                 Log.w(TAG, "Could not delete torrent file: ", e);
             }
         }
-
-        torrent.setTorrentFilePath(newPath);
-
-        update(torrent);
+        if (newPath == null)
+            return;
+        torrent.setSource(newPath);
+        update(torrent, false);
     }
 
     public void update(Torrent torrent)
+    {
+        update(torrent, true);
+    }
+
+    public void update(Torrent torrent, boolean replaceStatus)
     {
         ContentValues values = new ContentValues();
 
         values.put(DatabaseHelper.COLUMN_TORRENT_ID, torrent.getId());
         values.put(DatabaseHelper.COLUMN_NAME, torrent.getName());
-        values.put(DatabaseHelper.COLUMN_PATH_TO_TORRENT, torrent.getTorrentFilePath());
+        values.put(DatabaseHelper.COLUMN_PATH_TO_TORRENT, torrent.getSource());
         values.put(DatabaseHelper.COLUMN_PATH_TO_DOWNLOAD, torrent.getDownloadPath());
-        values.put(DatabaseHelper.COLUMN_FILE_PRIORITIES, integerListToString(torrent.getFilePriorities()));
+        values.put(DatabaseHelper.COLUMN_FILE_PRIORITIES, prioritiesToString(torrent.getFilePriorities()));
         values.put(DatabaseHelper.COLUMN_IS_SEQUENTIAL, (torrent.isSequentialDownload() ? 1 : 0));
-        values.put(DatabaseHelper.COLUMN_IS_FINISHED, (torrent.isFinished() ? 1 : 0));
-        values.put(DatabaseHelper.COLUMN_IS_PAUSED, (torrent.isPaused() ? 1 : 0));
+        if (replaceStatus) {
+            values.put(DatabaseHelper.COLUMN_IS_FINISHED, (torrent.isFinished() ? 1 : 0));
+            values.put(DatabaseHelper.COLUMN_IS_PAUSED, (torrent.isPaused() ? 1 : 0));
+        }
+        values.put(DatabaseHelper.COLUMN_DOWNLOADING_METADATA, (torrent.isDownloadingMetadata() ? 1 : 0));
+        values.put(DatabaseHelper.COLUMN_DATETIME, torrent.getDateAdded());
+        values.put(DatabaseHelper.COLUMN_ERROR, torrent.getError());
 
         ConnectionManager.getDatabase(context).update(DatabaseHelper.TORRENTS_TABLE,
                 values,
@@ -175,9 +204,8 @@ public class TorrentStorage
                 DatabaseHelper.COLUMN_TORRENT_ID + " = '" + torrent.getId() + "' ",
                 null);
 
-        if (!TorrentUtils.removeTorrentDataDir(context, torrent.getId())) {
+        if (!TorrentUtils.removeTorrentDataDir(context, torrent.getId()))
             Log.e(TAG, "Can't delete torrent " + torrent);
-        }
     }
 
     public void delete(String id)
@@ -186,9 +214,8 @@ public class TorrentStorage
                 DatabaseHelper.COLUMN_TORRENT_ID + " = '" + id + "' ",
                 null);
 
-        if (!TorrentUtils.removeTorrentDataDir(context, id)) {
+        if (!TorrentUtils.removeTorrentDataDir(context, id))
             Log.e(TAG, "Can't delete torrent " + id);
-        }
     }
 
     public Torrent getTorrentByID(String id)
@@ -204,11 +231,8 @@ public class TorrentStorage
         Torrent torrent = null;
 
         ColumnIndexCache indexCache = new ColumnIndexCache();
-
-        if (cursor.moveToNext()) {
+        if (cursor.moveToNext())
             torrent = cursorToTorrent(cursor, indexCache);
-        }
-
         cursor.close();
         indexCache.clear();
 
@@ -217,7 +241,7 @@ public class TorrentStorage
 
     public List<Torrent> getAll()
     {
-        List<Torrent> torrents = new ArrayList<Torrent>();
+        List<Torrent> torrents = new ArrayList<>();
 
                 Cursor cursor = ConnectionManager.getDatabase(context).query(DatabaseHelper.TORRENTS_TABLE,
                 allColumns,
@@ -228,11 +252,8 @@ public class TorrentStorage
                 null);
 
         ColumnIndexCache indexCache = new ColumnIndexCache();
-
-        while (cursor.moveToNext()) {
+        while (cursor.moveToNext())
             torrents.add(cursorToTorrent(cursor, indexCache));
-        }
-
         cursor.close();
         indexCache.clear();
 
@@ -245,7 +266,7 @@ public class TorrentStorage
 
     public Map<String, Torrent> getAllAsMap()
     {
-        Map<String, Torrent> torrents = new HashMap<String, Torrent>();
+        Map<String, Torrent> torrents = new HashMap<>();
 
         Cursor cursor = ConnectionManager.getDatabase(context).query(DatabaseHelper.TORRENTS_TABLE,
                 allColumns,
@@ -256,12 +277,10 @@ public class TorrentStorage
                 null);
 
         ColumnIndexCache indexCache = new ColumnIndexCache();
-
         while (cursor.moveToNext()) {
             Torrent torrent = cursorToTorrent(cursor, indexCache);
             torrents.put(torrent.getId(), torrent);
         }
-
         cursor.close();
         indexCache.clear();
 
@@ -283,7 +302,6 @@ public class TorrentStorage
 
             return true;
         }
-
         cursor.close();
 
         return false;
@@ -304,7 +322,6 @@ public class TorrentStorage
 
             return true;
         }
-
         cursor.close();
 
         return false;
@@ -326,7 +343,7 @@ public class TorrentStorage
 
         String priorities = cursor.getString(
                 indexCache.getColumnIndex(cursor, DatabaseHelper.COLUMN_FILE_PRIORITIES));
-        Collection<Integer> filePriorities = integerListFromString(priorities);
+        List<Priority> filePriorities = prioritiesFromString(priorities);
 
         boolean isSequentialDownload = cursor.getInt(
                 indexCache.getColumnIndex(cursor, DatabaseHelper.COLUMN_IS_SEQUENTIAL)) > 0;
@@ -337,36 +354,51 @@ public class TorrentStorage
         boolean isPaused = cursor.getInt(
                 indexCache.getColumnIndex(cursor, DatabaseHelper.COLUMN_IS_PAUSED)) > 0;
 
-        Torrent torrent =
-                new Torrent(
-                        id, pathToTorrent,
-                        name, filePriorities,
-                        pathToDownload);
+        boolean downloadingMetadata = cursor.getInt(
+                indexCache.getColumnIndex(cursor, DatabaseHelper.COLUMN_DOWNLOADING_METADATA)) > 0;
+
+        long datetime = cursor.getLong(indexCache.getColumnIndex(cursor, DatabaseHelper.COLUMN_DATETIME));
+        String error = cursor.getString(indexCache.getColumnIndex(cursor, DatabaseHelper.COLUMN_ERROR));
+
+        Torrent torrent = new Torrent(id, pathToTorrent,
+                                      name, filePriorities,
+                                      pathToDownload, datetime);
 
         torrent.setSequentialDownload(isSequentialDownload);
         torrent.setFinished(isFinished);
         torrent.setPaused(isPaused);
+        torrent.setDownloadingMetadata(downloadingMetadata);
+        torrent.setError(error);
 
         return torrent;
     }
 
     @NonNull
-    private String integerListToString(Collection<Integer> indexes)
+    private String prioritiesToString(List<Priority> priorities)
     {
-        return TextUtils.join(Model.FILE_LIST_SEPARATOR, indexes);
+        if (priorities == null || priorities.size() == 0)
+            return "";
+
+        List<Integer> val = new ArrayList<>(priorities.size());
+        for (int i = 0; i < priorities.size(); i++)
+            val.add(priorities.get(i).swig());
+
+        return TextUtils.join(Model.FILE_LIST_SEPARATOR, val);
     }
 
-    private Collection<Integer> integerListFromString(String s)
+    private List<Priority> prioritiesFromString(String s)
     {
         List<String> numbers = Arrays.asList(s.split(Model.FILE_LIST_SEPARATOR));
+        int length = numbers.size();
+        List<Priority> priorities = new ArrayList<>(length);
 
-        Collection<Integer> list = new ArrayList<>();
-
-        for (String number : numbers) {
-            list.add(Integer.valueOf(number));
+        for (int i = 0; i < length; i++) {
+            if (TextUtils.isEmpty(numbers.get(i)))
+                continue;
+           priorities.add(Priority.fromSwig(Integer.valueOf(numbers.get(i))));
         }
 
-        return list;
+        return priorities;
     }
 
     /*
@@ -379,9 +411,8 @@ public class TorrentStorage
 
         public int getColumnIndex(Cursor cursor, String columnName)
         {
-            if (!map.containsKey(columnName)) {
+            if (!map.containsKey(columnName))
                 map.put(columnName, cursor.getColumnIndex(columnName));
-            }
 
             return map.get(columnName);
         }

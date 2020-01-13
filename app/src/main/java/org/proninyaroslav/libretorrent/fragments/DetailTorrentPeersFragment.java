@@ -23,12 +23,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Parcelable;
-import android.support.annotation.Nullable;
-import android.support.v4.app.Fragment;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.DefaultItemAnimator;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.DefaultItemAnimator;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -36,6 +37,7 @@ import android.view.ViewGroup;
 import org.proninyaroslav.libretorrent.R;
 import org.proninyaroslav.libretorrent.adapters.PeerListAdapter;
 import org.proninyaroslav.libretorrent.core.stateparcel.PeerStateParcel;
+import org.proninyaroslav.libretorrent.core.utils.Utils;
 import org.proninyaroslav.libretorrent.customviews.EmptyRecyclerView;
 import org.proninyaroslav.libretorrent.customviews.RecyclerViewDividerDecoration;
 
@@ -64,7 +66,8 @@ public class DetailTorrentPeersFragment extends Fragment
 
     private ArrayList<PeerStateParcel> peers = new ArrayList<>();
 
-    public static DetailTorrentPeersFragment newInstance() {
+    public static DetailTorrentPeersFragment newInstance()
+    {
         DetailTorrentPeersFragment fragment = new DetailTorrentPeersFragment();
 
         fragment.setArguments(new Bundle());
@@ -77,9 +80,8 @@ public class DetailTorrentPeersFragment extends Fragment
     {
         super.onAttach(context);
 
-        if (context instanceof AppCompatActivity) {
-            this.activity = (AppCompatActivity) context;
-        }
+        if (context instanceof AppCompatActivity)
+            this.activity = (AppCompatActivity)context;
     }
 
     @Override
@@ -87,13 +89,12 @@ public class DetailTorrentPeersFragment extends Fragment
     {
         super.onCreate(savedInstanceState);
 
-        if (savedInstanceState != null) {
+        if (savedInstanceState != null)
             peers = savedInstanceState.getParcelableArrayList(TAG_PEER_LIST);
-        }
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
     {
         return inflater.inflate(R.layout.fragment_detail_torrent_peer_list, container, false);
     }
@@ -103,11 +104,10 @@ public class DetailTorrentPeersFragment extends Fragment
     {
         super.onActivityCreated(savedInstanceState);
 
-        if (activity == null) {
-            activity = (AppCompatActivity) getActivity();
-        }
+        if (activity == null)
+            activity = (AppCompatActivity)getActivity();
 
-        peerList = (EmptyRecyclerView) activity.findViewById(R.id.peer_list);
+        peerList = activity.findViewById(R.id.peer_list);
         if (peerList != null) {
             layoutManager = new LinearLayoutManager(activity);
             peerList.setLayoutManager(layoutManager);
@@ -121,15 +121,20 @@ public class DetailTorrentPeersFragment extends Fragment
             DefaultItemAnimator animator = new DefaultItemAnimator()
             {
                 @Override
-                public boolean canReuseUpdatedViewHolder(RecyclerView.ViewHolder viewHolder)
+                public boolean canReuseUpdatedViewHolder(@NonNull RecyclerView.ViewHolder viewHolder)
                 {
                     return true;
                 }
             };
+
+            int resId = R.drawable.list_divider;
+            if (Utils.isDarkTheme(activity.getApplicationContext()) ||
+                Utils.isBlackTheme(activity.getApplicationContext()))
+                resId = R.drawable.list_divider_dark;
+
             peerList.setItemAnimator(animator);
             peerList.addItemDecoration(
-                    new RecyclerViewDividerDecoration(
-                            activity.getApplicationContext(), R.drawable.torrent_list_divider));
+                    new RecyclerViewDividerDecoration(activity.getApplicationContext(), resId));
 
             adapter = new PeerListAdapter(peers, activity, R.layout.item_peers_list, this);
             peerList.setAdapter(adapter);
@@ -137,11 +142,10 @@ public class DetailTorrentPeersFragment extends Fragment
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState)
+    public void onSaveInstanceState(@NonNull Bundle outState)
     {
-        if (layoutManager != null) {
+        if (layoutManager != null)
             listPeerState = layoutManager.onSaveInstanceState();
-        }
         outState.putParcelable(TAG_LIST_PEER_STATE, listPeerState);
         outState.putParcelableArrayList(TAG_PEER_LIST, peers);
 
@@ -153,9 +157,8 @@ public class DetailTorrentPeersFragment extends Fragment
     {
         super.onViewStateRestored(savedInstanceState);
 
-        if (savedInstanceState != null) {
+        if (savedInstanceState != null)
             listPeerState = savedInstanceState.getParcelable(TAG_LIST_PEER_STATE);
-        }
     }
 
     @Override
@@ -163,13 +166,15 @@ public class DetailTorrentPeersFragment extends Fragment
     {
         super.onResume();
 
-        if (listPeerState != null && layoutManager != null) {
+        if (listPeerState != null && layoutManager != null)
             layoutManager.onRestoreInstanceState(listPeerState);
-        }
     }
 
     public void setPeerList(ArrayList<PeerStateParcel> peers)
     {
+        if (adapter == null)
+            return;
+
         if (peers.isEmpty()) {
             adapter.clearAll();
             return;
@@ -177,11 +182,10 @@ public class DetailTorrentPeersFragment extends Fragment
 
         this.peers = peers;
 
-        if (adapter.isEmpty()) {
+        if (adapter.isEmpty())
             adapter.addItems(peers);
-        } else {
+        else
             adapter.updateItems(peers);
-        }
     }
 
     @Override

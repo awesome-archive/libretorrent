@@ -20,11 +20,12 @@
 package org.proninyaroslav.libretorrent.dialogs;
 
 import android.app.Dialog;
-import android.app.DialogFragment;
 import android.app.ProgressDialog;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.os.Build;
 import android.os.Bundle;
-
-import org.proninyaroslav.libretorrent.core.utils.Utils;
+import androidx.fragment.app.DialogFragment;
 
 /*
  * The simple spinner progress dialog.
@@ -39,12 +40,11 @@ public class SpinnerProgressDialog extends DialogFragment
     protected static final String TAG_PROGRESS = "progress";
     protected static final String TAG_IS_INDETERMINATE = "is_indeterminate";
     protected static final String TAG_IS_CANCELABLE = "is_cancelable";
-    protected static final String TAG_STYLE = "style";
 
     /* In the absence of any parameter need set 0 */
 
     public static SpinnerProgressDialog newInstance(int title, String message, int progress,
-                                                    boolean isIndeterminate, boolean isCancelable, int style)
+                                                    boolean isIndeterminate, boolean isCancelable)
     {
         SpinnerProgressDialog frag = new SpinnerProgressDialog();
 
@@ -55,7 +55,6 @@ public class SpinnerProgressDialog extends DialogFragment
         args.putInt(TAG_PROGRESS, progress);
         args.putBoolean(TAG_IS_INDETERMINATE, isIndeterminate);
         args.putBoolean(TAG_IS_CANCELABLE, isCancelable);
-        args.putInt(TAG_STYLE, style);
 
         frag.setArguments(args);
 
@@ -66,15 +65,16 @@ public class SpinnerProgressDialog extends DialogFragment
     public Dialog onCreateDialog(Bundle savedInstanceState)
     {
         Bundle args = getArguments();
-
         int title = args.getInt(TAG_TITLE);
         String message = args.getString(TAG_MESSAGE);
         int progress = args.getInt(TAG_PROGRESS);
         boolean isIndeterminate = args.getBoolean(TAG_IS_INDETERMINATE);
         boolean isCancelable = args.getBoolean(TAG_IS_CANCELABLE);
-        int style = args.getInt(TAG_STYLE);
 
-        ProgressDialog dialog = new ProgressDialog(getActivity(), style);
+        ProgressDialog dialog = new ProgressDialog(getActivity());
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP && dialog.getWindow() != null)
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+
         dialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
         dialog.setTitle(title);
         dialog.setMessage(message);

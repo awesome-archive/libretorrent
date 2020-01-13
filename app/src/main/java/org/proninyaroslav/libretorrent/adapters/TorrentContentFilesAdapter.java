@@ -20,9 +20,11 @@
 package org.proninyaroslav.libretorrent.adapters;
 
 import android.content.Context;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.widget.RecyclerView;
+import android.content.res.TypedArray;
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.RecyclerView;
 import android.text.format.Formatter;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -40,6 +42,7 @@ import org.proninyaroslav.libretorrent.core.filetree.FileNode;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 public class TorrentContentFilesAdapter
         extends BaseFileListAdapter<TorrentContentFilesAdapter.ViewHolder, TorrentContentFileTree>
@@ -61,37 +64,38 @@ public class TorrentContentFilesAdapter
         this.files = files;
     }
 
+    @NonNull
     @Override
-    public ViewHolder onCreateViewHolder(ViewGroup parent, int viewType)
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType)
     {
         View v = LayoutInflater.from(parent.getContext()).inflate(rowLayout, parent, false);
 
         return new ViewHolder(v, clickListener, files);
     }
 
+    @SuppressWarnings("ResourceType")
     @Override
-    public void onBindViewHolder(ViewHolder holder, int position)
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position)
     {
         final TorrentContentFileTree file = files.get(position);
 
-        if (isSelected(position)) {
-            Utils.setBackground(
-                    holder.itemView,
-                    ContextCompat.getDrawable(context, R.drawable.default_gray_rect));
-        } else {
-            Utils.setBackground(
-                    holder.itemFileList,
-                    ContextCompat.getDrawable(context, R.drawable.default_rect_ripple));
-        }
+        TypedArray a = context.obtainStyledAttributes(new TypedValue().data, new int[] {
+                R.attr.defaultSelectRect,
+                R.attr.defaultRectRipple
+        });
+
+        if (isSelected(position))
+            Utils.setBackground(holder.itemView, a.getDrawable(0));
+        else
+            Utils.setBackground(holder.itemFileList, a.getDrawable(1));
+        a.recycle();
 
         holder.fileName.setText(file.getName());
 
-        if (file.getType() == FileNode.Type.DIR) {
+        if (file.getType() == FileNode.Type.DIR)
             holder.fileIcon.setImageResource(R.drawable.ic_folder_grey600_24dp);
-
-        } else if (file.getType() == FileNode.Type.FILE) {
+        else if (file.getType() == FileNode.Type.FILE)
             holder.fileIcon.setImageResource(R.drawable.ic_file_grey600_24dp);
-        }
 
         if (file.getName().equals(BencodeFileTree.PARENT_DIR)) {
             holder.fileSelected.setVisibility(View.GONE);
@@ -106,31 +110,34 @@ public class TorrentContentFilesAdapter
             String received = Formatter.formatFileSize(context, file.getReceivedBytes());
 
             String priority = "";
-
-            switch (file.getPriority()) {
+            switch (file.getFilePriority().getType()) {
                 case NORMAL:
                     priority = context.getString(R.string.file_priority_normal);
                     break;
                 case IGNORE:
                     priority = context.getString(R.string.file_priority_low);
                     break;
-                case UNKNOWN:
+                case MIXED:
                     priority = context.getString(R.string.file_priority_mixed);
                     break;
-                case SEVEN:
+                case HIGH:
                     priority = context.getString(R.string.file_priority_high);
                     break;
             }
+            double avail = file.getAvailability();
+            String availability;
+            if (avail < 0)
+                availability = context.getString(R.string.not_available);
+            else
+                availability =  String.format(Locale.getDefault(), "%.1f%%", (avail >= 1 ? 100 : avail * 100));
 
             if (file.getSelectState() == TorrentContentFileTree.SelectState.DISABLED) {
                 holder.fileSelected.setVisibility(View.GONE);
                 holder.fileProgress.setVisibility(View.VISIBLE);
 
                 String statusTemplate = context.getString(R.string.file_downloading_status_template);
-                holder.fileStatus.setText(
-                        String.format(
-                                statusTemplate, priority,
-                                received, total, progress));
+                holder.fileStatus.setText(String.format(statusTemplate, priority,
+                                                        received, total, progress, availability));
                 holder.fileProgress.setProgress(progress);
             } else {
                 holder.fileSelected.setVisibility(View.VISIBLE);
@@ -182,23 +189,16 @@ public class TorrentContentFilesAdapter
             itemView.setOnClickListener(this);
             itemView.setOnLongClickListener(this);
 
-            itemFileList = (RelativeLayout) itemView.findViewById(R.id.item_file_list);
-            fileName = (TextView) itemView.findViewById(R.id.file_name);
-            fileStatus = (TextView) itemView.findViewById(R.id.file_status);
-            fileIcon = (ImageView) itemView.findViewById(R.id.file_icon);
-            fileSelected = (CheckBox) itemView.findViewById(R.id.file_selected);
-            fileSelected.setOnClickListener(new View.OnClickListener()
-            {
-                @Override
-                public void onClick(View v)
-                {
-                    if (listener != null) {
-                        listener.onItemCheckedChanged(files.get(getAdapterPosition()),
-                                fileSelected.isChecked());
-                    }
-                }
+            itemFileList = itemView.findViewById(R.id.item_file_list);
+            fileName = itemView.findViewById(R.id.file_name);
+            fileStatus = itemView.findViewById(R.id.file_status);
+            fileIcon = itemView.findViewById(R.id.file_icon);
+            fileSelected = itemView.findViewById(R.id.file_selected);
+            fileSelected.setOnClickListener((View v) -> {
+                if (listener != null)
+                    listener.onItemCheckedChanged(files.get(getAdapterPosition()), fileSelected.isChecked());
             });
-            fileProgress = (ProgressBar) itemView.findViewById(R.id.file_progress);
+            fileProgress = itemView.findViewById(R.id.file_progress);
             Utils.colorizeProgressBar(context, fileProgress);
         }
 
@@ -209,7 +209,6 @@ public class TorrentContentFilesAdapter
 
             if (listener != null && position >= 0) {
                 TorrentContentFileTree file = files.get(position);
-
                 listener.onItemClicked(position, file);
             }
         }
@@ -221,7 +220,6 @@ public class TorrentContentFilesAdapter
 
             if (listener != null && position >= 0) {
                 TorrentContentFileTree file = files.get(position);
-
                 listener.onItemLongClicked(position, file);
 
                 return true;

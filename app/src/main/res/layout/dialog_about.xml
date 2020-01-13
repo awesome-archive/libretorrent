@@ -14,7 +14,7 @@
         <ImageView
             android:layout_width="match_parent"
             android:layout_height="96dp"
-            android:contentDescription="@null"
+            android:contentDescription="@string/app_name"
             android:src="@mipmap/ic_launcher" />
 
         <TextView
@@ -31,13 +31,12 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:gravity="center"
-            android:textAppearance="@style/TextAppearance.AppCompat.Small" />
+            android:textAppearance="?attr/smallText" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:gravity="center"
             android:autoLink="web"
             android:text="@string/about_website"
             android:textAppearance="@style/TextAppearance.AppCompat.Body1" />

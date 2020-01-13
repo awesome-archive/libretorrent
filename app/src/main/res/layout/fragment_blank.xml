@@ -7,14 +7,14 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/background_gray">
+        android:background="?attr/backgroundBlank">
 
         <View
             android:id="@+id/fake_toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:elevation="4dp"
-            android:background="@color/primary" />
+            android:background="?attr/colorPrimary" />
 
         <TextView
             android:id="@+id/blank_textview"
@@ -22,7 +22,6 @@
             android:layout_height="match_parent"
             android:layout_below="@id/fake_toolbar"
             android:gravity="center"
-            android:textAppearance="@style/TextAppearance.AppCompat.Display1"
-            android:text="@string/select_or_add_torrent" />
+            android:textAppearance="@style/TextAppearance.AppCompat.Display1" />
     </RelativeLayout>
 </FrameLayout>

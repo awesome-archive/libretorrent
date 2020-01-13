@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -19,15 +19,14 @@
 
 package org.proninyaroslav.libretorrent.core.filetree;
 
-import com.frostwire.jlibtorrent.Priority;
-
 import java.io.Serializable;
 
 public class TorrentContentFileTree extends FileTree<TorrentContentFileTree> implements Serializable
 {
     private SelectState selected = SelectState.UNSELECTED;
-    private Priority priority = Priority.IGNORE;
+    private FilePriority priority = new FilePriority(FilePriority.Type.IGNORE);
     private long receivedBytes = 0L;
+    private double availability = -1;
 
     public enum SelectState
     {
@@ -52,62 +51,53 @@ public class TorrentContentFileTree extends FileTree<TorrentContentFileTree> imp
         super(name, size, type, parent);
     }
 
-    public Priority getPriority()
+    public FilePriority getFilePriority()
     {
         return priority;
     }
 
-    public void setPriority(Priority priority)
+    public void setPriority(FilePriority priority)
     {
         this.priority = priority;
 
-        if (priority == Priority.IGNORE && selected == SelectState.SELECTED) {
+        if (priority.getType() == FilePriority.Type.IGNORE && selected == SelectState.SELECTED)
             select(SelectState.UNSELECTED);
-        } else if (priority != Priority.IGNORE && selected == SelectState.UNSELECTED) {
+        else if (priority.getType() != FilePriority.Type.IGNORE && selected == SelectState.UNSELECTED)
             select(SelectState.SELECTED);
-        }
 
         /* Sending priority change event up the tree */
-        if (parent != null && parent.priority != priority) {
+        if (parent != null && parent.priority.getType() != priority.getType())
             parent.onChildPriorityChanged(priority);
-        }
 
         /* Sending priority change event down the tree */
-        if (children.size() != 0) {
-            for (TorrentContentFileTree node : children.values()) {
-                if (node.priority != priority) {
+        if (children.size() != 0)
+            for (TorrentContentFileTree node : children.values())
+                if (node.priority.getType() != priority.getType())
                     node.setPriority(priority);
-                }
-            }
-        }
     }
 
-    private synchronized void onChildPriorityChanged(Priority priority)
+    private synchronized void onChildPriorityChanged(FilePriority priority)
     {
         if (children.size() != 0) {
             boolean isMixedPriority = false;
-            for (TorrentContentFileTree child : children.values()) {
-                if (child.priority != priority) {
+            for (TorrentContentFileTree child : children.values())
+                if (child.priority.getType() != priority.getType())
                     isMixedPriority = true;
-                }
-            }
 
-            this.priority = (isMixedPriority ? Priority.UNKNOWN : priority);
+            this.priority = (isMixedPriority ? new FilePriority(FilePriority.Type.MIXED) : priority);
         }
 
         /* Sending priority change event up the parent */
-        if (parent != null && parent.priority != priority) {
+        if (parent != null && parent.priority.getType() != priority.getType())
             parent.onChildPriorityChanged(priority);
-        }
     }
 
     public long getReceivedBytes()
     {
         if (children.size() != 0) {
             receivedBytes = 0;
-            for (TorrentContentFileTree node : children.values()) {
+            for (TorrentContentFileTree node : children.values())
                 receivedBytes += node.getReceivedBytes();
-            }
         }
 
         return receivedBytes;
@@ -127,25 +117,20 @@ public class TorrentContentFileTree extends FileTree<TorrentContentFileTree> imp
     {
         selected = select;
 
-        if (selected == SelectState.SELECTED && priority == Priority.IGNORE) {
-            setPriority(Priority.NORMAL);
-        } else if (selected == SelectState.UNSELECTED && priority != Priority.IGNORE) {
-            setPriority(Priority.IGNORE);
-        }
+        if (selected == SelectState.SELECTED && priority.getType() == FilePriority.Type.IGNORE)
+            setPriority(new FilePriority(FilePriority.Type.NORMAL));
+        else if (selected == SelectState.UNSELECTED && priority.getType() != FilePriority.Type.IGNORE)
+            setPriority(new FilePriority(FilePriority.Type.IGNORE));
 
         /* Sending select change event up the parent */
-        if (parent != null && parent.selected != select) {
+        if (parent != null && parent.selected != select)
             parent.onChildSelectChange();
-        }
 
         /* Sending select change event down the tree */
-        if (children.size() != 0) {
-            for (TorrentContentFileTree node : children.values()) {
-                if (node.selected != select) {
+        if (children.size() != 0)
+            for (TorrentContentFileTree node : children.values())
+                if (node.selected != select)
                     node.select(select);
-                }
-            }
-        }
     }
 
     /*
@@ -158,25 +143,22 @@ public class TorrentContentFileTree extends FileTree<TorrentContentFileTree> imp
             long childrenSelectedNum = 0, childrenDisabledNum = 0;
 
             for (TorrentContentFileTree child : children.values()) {
-                if (child.selected == SelectState.SELECTED) {
+                if (child.selected == SelectState.SELECTED)
                     ++childrenSelectedNum;
-                } else if (child.selected == SelectState.DISABLED) {
+                else if (child.selected == SelectState.DISABLED)
                     ++childrenDisabledNum;
-                }
             }
 
-            if (childrenDisabledNum > 0) {
+            if (childrenDisabledNum > 0)
                 selected = SelectState.DISABLED;
-            } else {
-            /* Unselect parent only if don't left selected children nodes */
+            else
+                /* Unselect parent only if don't left selected children nodes */
                 selected = (childrenSelectedNum > 0 ? SelectState.SELECTED : SelectState.UNSELECTED);
-            }
         }
 
         /* Sending select change event up the parent */
-        if (parent != null && parent.selected != selected) {
+        if (parent != null && parent.selected != selected)
             parent.onChildSelectChange();
-        }
     }
 
     public long selectedFileSize()
@@ -184,17 +166,42 @@ public class TorrentContentFileTree extends FileTree<TorrentContentFileTree> imp
         long size = 0;
 
         if (children.size() != 0) {
-            for (TorrentContentFileTree child : children.values()) {
-                if (child.selected != SelectState.UNSELECTED) {
+            for (TorrentContentFileTree child : children.values())
+                if (child.selected != SelectState.UNSELECTED)
                     size += child.selectedFileSize();
-                }
-            }
-
         } else if (selected != SelectState.UNSELECTED) {
             size = this.size();
         }
 
         return size;
+    }
+
+    public synchronized void setAvailability(double availability)
+    {
+        this.availability = availability;
+    }
+
+    public double getAvailability()
+    {
+        if (children.size() != 0) {
+            double avail = 0;
+            long size = 0;
+            for (TorrentContentFileTree node : children.values()) {
+                if (node.getFilePriority().getType() == FilePriority.Type.IGNORE)
+                    continue;
+                double childAvail = node.getAvailability();
+                long childSize = node.size();
+                if (childAvail >= 0)
+                    avail += childAvail * childSize;
+                size += childSize;
+            }
+            if (size > 0)
+                availability = avail / size;
+            else
+                availability = -1;
+        }
+
+        return availability;
     }
 
     @Override
@@ -205,6 +212,7 @@ public class TorrentContentFileTree extends FileTree<TorrentContentFileTree> imp
                 ", selected=" + selected +
                 ", priority=" + priority +
                 ", receivedBytes=" + receivedBytes +
+                ", availability=" + availability +
                 '}';
     }
 }

@@ -3,7 +3,7 @@
     android:id="@+id/item_torrent_list"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@drawable/default_rect_ripple">
+    android:background="?attr/defaultRectRipple">
 
     <View
         android:id="@+id/indicator_cur_open_torrent"
@@ -20,10 +20,11 @@
         android:layout_marginRight="16dp"
         android:gravity="center">
 
-        <com.wnafee.vector.ui.MorphButton
+        <ImageButton
             android:id="@+id/pause_torrent"
             android:layout_width="40dp"
             android:layout_height="40dp"
+            android:scaleType="fitXY"
             android:padding="6dp"
             android:background="@drawable/fab_ripple" />
 
@@ -74,7 +75,7 @@
                         android:layout_marginRight="8dp"
                         android:ellipsize="end"
                         android:maxLines="1"
-                        android:textAppearance="@style/TextAppearance.AppCompat.Small" />
+                        android:textAppearance="?attr/smallText" />
                 </LinearLayout>
 
                 <TextView
@@ -85,7 +86,7 @@
                     android:gravity="center_vertical"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:textAppearance="@style/TextAppearance.AppCompat.Small" />
+                    android:textAppearance="?attr/smallText" />
             </LinearLayout>
 
             <LinearLayout
@@ -110,20 +111,33 @@
                         android:gravity="center_vertical"
                         android:layout_marginRight="8dp"
                         android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textAppearance="@style/TextAppearance.AppCompat.Small" />
+                        android:maxLines="2"
+                        android:textAppearance="?attr/smallText" />
                 </LinearLayout>
 
                 <TextView
-                    android:id="@+id/torrent_ETA"
+                    android:id="@+id/torrent_peers"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_vertical"
                     android:gravity="center_vertical"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:textAppearance="@style/TextAppearance.AppCompat.Small" />
+                    android:textAppearance="?attr/smallText" />
             </LinearLayout>
+
+            <TextView
+                android:id="@+id/torrent_error"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:gravity="center_vertical"
+                android:layout_marginTop="4dp"
+                android:layout_marginRight="8dp"
+                android:ellipsize="end"
+                android:maxLines="3"
+                android:textColor="@color/error"
+                android:textAppearance="@style/TextAppearance.AppCompat.Small" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

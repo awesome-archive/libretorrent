@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016, 2017 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -22,13 +22,12 @@ package org.proninyaroslav.libretorrent.core;
 import android.os.Parcel;
 import android.os.Parcelable;
 
-import com.frostwire.jlibtorrent.TorrentInfo;
+import org.libtorrent4j.TorrentInfo;
 
 import org.proninyaroslav.libretorrent.core.exceptions.DecodeException;
 import org.proninyaroslav.libretorrent.core.utils.Utils;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 
 /*
@@ -37,26 +36,32 @@ import java.util.ArrayList;
 
 public class TorrentMetaInfo implements Parcelable
 {
-    private String torrentName;
-    private String sha1Hash;
-    private String comment;
-    private String createdBy;
-    private long torrentSize;
-    private long creationDate;
-    private int fileCount;
-    private int pieceLength;
-    private int numPieces;
-    private ArrayList<BencodeFileItem> fileList;
+    public String torrentName = "";
+    public String sha1Hash = "";
+    public String comment = "";
+    public String createdBy = "";
+    public long torrentSize = 0L;
+    public long creationDate = 0L;
+    public int fileCount = 0;
+    public int pieceLength = 0;
+    public int numPieces = 0;
+    public ArrayList<BencodeFileItem> fileList = new ArrayList<>();
 
-    public TorrentMetaInfo(String pathToTorrent) throws IOException, DecodeException
+    public TorrentMetaInfo(String pathToTorrent) throws DecodeException
     {
         File torrentFile = new File(pathToTorrent);
         try {
             getMetaInfo(new TorrentInfo(torrentFile));
 
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             throw new DecodeException(e);
         }
+    }
+
+    public TorrentMetaInfo(String torrentName, String sha1hash)
+    {
+        this.torrentName = torrentName;
+        this.sha1Hash = sha1hash;
     }
 
     public TorrentMetaInfo(byte[] data) throws DecodeException
@@ -64,7 +69,7 @@ public class TorrentMetaInfo implements Parcelable
         try {
             getMetaInfo(TorrentInfo.bdecode(data));
 
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             throw new DecodeException(e);
         }
     }
@@ -74,7 +79,7 @@ public class TorrentMetaInfo implements Parcelable
         try {
             getMetaInfo(info);
 
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
             throw new DecodeException(e);
         }
     }
@@ -107,61 +112,6 @@ public class TorrentMetaInfo implements Parcelable
         source.readTypedList(fileList, BencodeFileItem.CREATOR);
         pieceLength = source.readInt();
         numPieces = source.readInt();
-    }
-
-    public String getTorrentName()
-    {
-        return torrentName;
-    }
-
-    public String getSha1Hash()
-    {
-        return sha1Hash;
-    }
-
-    public String getComment()
-    {
-        return comment;
-    }
-
-    public String getCreatedBy()
-    {
-        return createdBy;
-    }
-
-    public long getTorrentSize()
-    {
-        return torrentSize;
-    }
-
-    public long getCreationDate()
-    {
-        return creationDate;
-    }
-
-    public int getFileCount()
-    {
-        return fileCount;
-    }
-
-    public int getPieceLength()
-    {
-        return pieceLength;
-    }
-
-    public int getNumPieces()
-    {
-        return numPieces;
-    }
-
-    /*
-     * The order of addition in the returned list corresponds
-     * to the order of indexes in jlibtorrent.FileStorage
-     */
-
-    public ArrayList<BencodeFileItem> getFiles()
-    {
-        return fileList;
     }
 
     @Override
@@ -200,6 +150,34 @@ public class TorrentMetaInfo implements Parcelable
                     return new TorrentMetaInfo[size];
                 }
             };
+
+    @Override
+    public int hashCode()
+    {
+        return sha1Hash.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (!(o instanceof TorrentMetaInfo))
+            return false;
+
+        if (o == this)
+            return true;
+
+        TorrentMetaInfo info = (TorrentMetaInfo) o;
+
+        return (torrentName == null || torrentName.equals(info.torrentName)) &&
+                (sha1Hash == null || sha1Hash.equals(info.sha1Hash)) &&
+                (comment == null || comment.equals(info.comment)) &&
+                (createdBy == null || createdBy.equals(info.createdBy)) &&
+                torrentSize == info.torrentSize &&
+                creationDate == info.creationDate &&
+                fileCount == info.fileCount &&
+                pieceLength == info.pieceLength &&
+                numPieces == info.numPieces;
+    }
 
     @Override
     public String toString()

@@ -19,23 +19,19 @@
 
 package org.proninyaroslav.libretorrent.settings;
 
-import android.content.ComponentName;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.media.RingtoneManager;
-import android.net.Uri;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.provider.Settings;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.preference.Preference;
 
-import com.takisoft.fix.support.v7.preference.PreferenceFragmentCompat;
-import com.takisoft.fix.support.v7.preference.SwitchPreferenceCompat;
+import com.takisoft.preferencex.PreferenceFragmentCompat;
+
+import androidx.preference.Preference;
+import androidx.preference.SeekBarPreference;
+import androidx.preference.SwitchPreferenceCompat;
 
 import org.proninyaroslav.libretorrent.R;
 import org.proninyaroslav.libretorrent.core.utils.Utils;
-import org.proninyaroslav.libretorrent.receivers.BootReceiver;
-import org.proninyaroslav.libretorrent.settings.notificationlight.LightPreference;
 
 public class BehaviorSettingsFragment extends PreferenceFragmentCompat
         implements
@@ -44,12 +40,9 @@ public class BehaviorSettingsFragment extends PreferenceFragmentCompat
     @SuppressWarnings("unused")
     private static final String TAG = BehaviorSettingsFragment.class.getSimpleName();
 
-    private static final int REQUEST_CODE_ALERT_RINGTONE = 1;
-
     public static BehaviorSettingsFragment newInstance()
     {
         BehaviorSettingsFragment fragment = new BehaviorSettingsFragment();
-
         fragment.setArguments(new Bundle());
 
         return fragment;
@@ -60,97 +53,57 @@ public class BehaviorSettingsFragment extends PreferenceFragmentCompat
     {
         super.onCreate(savedInstanceState);
 
-        final SettingsManager pref = new SettingsManager(getActivity().getApplicationContext());
-
-        String keyTorrentFinishNotify = getString(R.string.pref_key_torrent_finish_notify);
-        SwitchPreferenceCompat torrentFinishNotify = (SwitchPreferenceCompat) findPreference(keyTorrentFinishNotify);
-        torrentFinishNotify.setChecked(pref.getBoolean(keyTorrentFinishNotify, true));
-        bindOnPreferenceChangeListener(torrentFinishNotify);
-
-        String keyPlaySound = getString(R.string.pref_key_play_sound_notify);
-        SwitchPreferenceCompat playSound = (SwitchPreferenceCompat) findPreference(keyPlaySound);
-        playSound.setChecked(pref.getBoolean(keyPlaySound, true));
-        bindOnPreferenceChangeListener(playSound);
-
-        final String keyNotifySound = getString(R.string.pref_key_notify_sound);
-        Preference notifySound = findPreference(keyNotifySound);
-        String ringtone = pref.getString(keyNotifySound,
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION).toString());
-        notifySound.setSummary(RingtoneManager.getRingtone(getActivity().getApplicationContext(), Uri.parse(ringtone))
-                .getTitle(getActivity().getApplicationContext()));
-        /* See https://code.google.com/p/android/issues/detail?id=183255 */
-        notifySound.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener()
-        {
-            @Override
-            public boolean onPreferenceClick(Preference preference)
-            {
-                Intent intent = new Intent(RingtoneManager.ACTION_RINGTONE_PICKER);
-                intent.putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION);
-                intent.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true);
-                intent.putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true);
-                intent.putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, Settings.System.DEFAULT_NOTIFICATION_URI);
-
-                String curRingtone = pref.getString(keyNotifySound, null);
-                if (curRingtone != null) {
-                    if (curRingtone.length() == 0) {
-                        // Select "Silent"
-                        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, (Uri) null);
-                    } else {
-                        intent.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(curRingtone));
-                    }
-
-                } else {
-                    intent.putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Settings.System.DEFAULT_NOTIFICATION_URI);
-                }
-
-                startActivityForResult(intent, REQUEST_CODE_ALERT_RINGTONE);
-
-                return true;
-            }
-        });
-
-        String keyLedIndicator = getString(R.string.pref_key_led_indicator_notify);
-        SwitchPreferenceCompat ledIndicator = (SwitchPreferenceCompat) findPreference(keyLedIndicator);
-        ledIndicator.setChecked(pref.getBoolean(keyLedIndicator, true));
-        bindOnPreferenceChangeListener(ledIndicator);
-
-        String keyLedIndicatorColor = getString(R.string.pref_key_led_indicator_color_notify);
-        LightPreference ledIndicatorColor = (LightPreference) findPreference(keyLedIndicatorColor);
-        ledIndicatorColor.forceSetValue(pref.getInt(keyLedIndicatorColor,
-                ContextCompat.getColor(getActivity().getApplicationContext(), R.color.primary)));
-        bindOnPreferenceChangeListener(ledIndicatorColor);
-
-        String keyVibration = getString(R.string.pref_key_vibration_notify);
-        SwitchPreferenceCompat vibration = (SwitchPreferenceCompat) findPreference(keyVibration);
-        vibration.setChecked(pref.getBoolean(keyVibration, true));
-        bindOnPreferenceChangeListener(vibration);
+        final SharedPreferences pref = SettingsManager.getPreferences(getActivity());
 
         String keyAutostart = getString(R.string.pref_key_autostart);
-        SwitchPreferenceCompat autostart = (SwitchPreferenceCompat) findPreference(keyAutostart);
-        autostart.setChecked(pref.getBoolean(keyAutostart, false));
+        SwitchPreferenceCompat autostart = (SwitchPreferenceCompat)findPreference(keyAutostart);
+        autostart.setChecked(pref.getBoolean(keyAutostart, SettingsManager.Default.autostart));
         bindOnPreferenceChangeListener(autostart);
 
+        String keyKeepAlive = getString(R.string.pref_key_keep_alive);
+        SwitchPreferenceCompat keepAlive = (SwitchPreferenceCompat)findPreference(keyKeepAlive);
+        keepAlive.setChecked(pref.getBoolean(keyKeepAlive, SettingsManager.Default.keepAlive));
+        bindOnPreferenceChangeListener(keepAlive);
+
         String keyShutdownComplete = getString(R.string.pref_key_shutdown_downloads_complete);
-        SwitchPreferenceCompat shutdownComplete = (SwitchPreferenceCompat) findPreference(keyShutdownComplete);
-        shutdownComplete.setChecked(pref.getBoolean(keyShutdownComplete, false));
+        SwitchPreferenceCompat shutdownComplete = (SwitchPreferenceCompat)findPreference(keyShutdownComplete);
+        shutdownComplete.setChecked(pref.getBoolean(keyShutdownComplete, SettingsManager.Default.shutdownDownloadsComplete));
         bindOnPreferenceChangeListener(shutdownComplete);
 
         String keyCpuSleep = getString(R.string.pref_key_cpu_do_not_sleep);
-        SwitchPreferenceCompat cpuSleep = (SwitchPreferenceCompat) findPreference(keyCpuSleep);
-        cpuSleep.setChecked(pref.getBoolean(keyCpuSleep, false));
+        SwitchPreferenceCompat cpuSleep = (SwitchPreferenceCompat)findPreference(keyCpuSleep);
+        cpuSleep.setChecked(pref.getBoolean(keyCpuSleep, SettingsManager.Default.cpuDoNotSleep));
         bindOnPreferenceChangeListener(cpuSleep);
 
         String keyOnlyCharging = getString(R.string.pref_key_download_and_upload_only_when_charging);
-        SwitchPreferenceCompat onlyCharging = (SwitchPreferenceCompat) findPreference(keyOnlyCharging);
-        onlyCharging.setChecked(pref.getBoolean(keyOnlyCharging, false));
+        SwitchPreferenceCompat onlyCharging = (SwitchPreferenceCompat)findPreference(keyOnlyCharging);
+        onlyCharging.setChecked(pref.getBoolean(keyOnlyCharging, SettingsManager.Default.onlyCharging));
         bindOnPreferenceChangeListener(onlyCharging);
 
         String keyBatteryControl = getString(R.string.pref_key_battery_control);
-        SwitchPreferenceCompat batteryControl = (SwitchPreferenceCompat) findPreference(keyBatteryControl);
+        SwitchPreferenceCompat batteryControl = (SwitchPreferenceCompat)findPreference(keyBatteryControl);
         batteryControl.setSummary(String.format(getString(R.string.pref_battery_control_summary),
-                Utils.getDefaultBatteryLowLevel()));
-        batteryControl.setChecked(pref.getBoolean(keyBatteryControl, false));
+                                  Utils.getDefaultBatteryLowLevel()));
+        batteryControl.setChecked(pref.getBoolean(keyBatteryControl, SettingsManager.Default.batteryControl));
         bindOnPreferenceChangeListener(batteryControl);
+
+        String keyCustomBatteryControl = getString(R.string.pref_key_custom_battery_control);
+        SwitchPreferenceCompat customBatteryControl = (SwitchPreferenceCompat)findPreference(keyCustomBatteryControl);
+        customBatteryControl.setSummary(String.format(getString(R.string.pref_custom_battery_control_summary),
+                Utils.getDefaultBatteryLowLevel()));
+        customBatteryControl.setChecked(pref.getBoolean(keyCustomBatteryControl, SettingsManager.Default.customBatteryControl));
+        bindOnPreferenceChangeListener(customBatteryControl);
+
+        String keyCustomBatteryControlValue = getString(R.string.pref_key_custom_battery_control_value);
+        SeekBarPreference customBatteryControlValue = (SeekBarPreference)findPreference(keyCustomBatteryControlValue);
+        customBatteryControlValue.setValue(pref.getInt(keyCustomBatteryControlValue, Utils.getDefaultBatteryLowLevel()));
+        customBatteryControlValue.setMin(10);
+        customBatteryControlValue.setMax(90);
+
+        String keyWifiOnly = getString(R.string.pref_key_wifi_only);
+        SwitchPreferenceCompat wifiOnly = (SwitchPreferenceCompat)findPreference(keyWifiOnly);
+        wifiOnly.setChecked(pref.getBoolean(keyWifiOnly, SettingsManager.Default.wifiOnly));
+        bindOnPreferenceChangeListener(wifiOnly);
     }
 
     @Override
@@ -159,55 +112,59 @@ public class BehaviorSettingsFragment extends PreferenceFragmentCompat
         setPreferencesFromResource(R.xml.pref_behavior, rootKey);
     }
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data)
-    {
-        if (requestCode == REQUEST_CODE_ALERT_RINGTONE && data != null) {
-            Uri ringtone = data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI);
-            if (ringtone != null) {
-                SettingsManager pref = new SettingsManager(getActivity().getApplicationContext());
-
-                String keyNotifySound = getString(R.string.pref_key_notify_sound);
-                Preference notifySound = findPreference(keyNotifySound);
-                notifySound.setSummary(RingtoneManager.getRingtone(getActivity().getApplicationContext(), ringtone)
-                        .getTitle(getActivity().getApplicationContext()));
-                pref.put(keyNotifySound, ringtone.toString());
-            }
-        } else {
-            super.onActivityResult(requestCode, resultCode, data);
-        }
-    }
-
     private void bindOnPreferenceChangeListener(Preference preference)
     {
         preference.setOnPreferenceChangeListener(this);
     }
 
     @Override
-    public boolean onPreferenceChange(Preference preference, Object newValue)
+    public boolean onPreferenceChange(final Preference preference, Object newValue)
     {
-        SettingsManager pref = new SettingsManager(getActivity().getApplicationContext());
+        final SharedPreferences pref = SettingsManager.getPreferences(getActivity());
 
         if (preference instanceof SwitchPreferenceCompat) {
-            pref.put(preference.getKey(), (boolean) newValue);
-
             if (preference.getKey().equals(getString(R.string.pref_key_autostart))) {
-                int flag = ((boolean) newValue ?
-                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED :
-                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED);
-                ComponentName bootReceiver = new ComponentName(getActivity(), BootReceiver.class);
-
-                getActivity().getPackageManager()
-                        .setComponentEnabledSetting(bootReceiver, flag, PackageManager.DONT_KILL_APP);
+                Utils.enableBootReceiver(getActivity(), (boolean)newValue);
             }
-
-        } else if (preference instanceof LightPreference) {
-            LightPreference ledIndicatorColor = (LightPreference) findPreference(preference.getKey());
-            ledIndicatorColor.forceSetValue((int) newValue);
-            pref.put(preference.getKey(), (int) newValue);
-
+            if(preference.getKey().equals(getString(R.string.pref_key_download_and_upload_only_when_charging))) {
+                if(!((SwitchPreferenceCompat) preference).isChecked())
+                    disableBatteryControl(pref);
+            }
+            if(preference.getKey().equals(getString(R.string.pref_key_battery_control))) {
+                if(((SwitchPreferenceCompat) preference).isChecked())
+                    disableCustomBatteryControl(pref);
+            }
+            if(preference.getKey().equals(getString(R.string.pref_key_custom_battery_control))) {
+                if (!((SwitchPreferenceCompat) preference).isChecked()) {
+                    new AlertDialog.Builder(getContext())
+                            .setTitle(getString(R.string.warning))
+                            .setMessage(getString(R.string.pref_custom_battery_control_dialog_summary))
+                            .setCancelable(false)
+                            .setPositiveButton(R.string.yes, (DialogInterface dialog, int id) -> dialog.dismiss())
+                            .setNegativeButton(R.string.no, (DialogInterface dialog, int id) -> disableCustomBatteryControl(pref))
+                            .create()
+                            .show();
+                }
+            }
         }
 
         return true;
+    }
+
+    private void disableBatteryControl(SharedPreferences pref)
+    {
+        String keyBatteryControl = getString(R.string.pref_key_battery_control);
+        SwitchPreferenceCompat batteryControl = (SwitchPreferenceCompat)findPreference(keyBatteryControl);
+        batteryControl.setChecked(false);
+        pref.edit().putBoolean(batteryControl.getKey(), false).apply();
+        disableCustomBatteryControl(pref);
+    }
+
+    private void disableCustomBatteryControl(SharedPreferences pref)
+    {
+        String keyCustomBatteryControl = getString(R.string.pref_key_custom_battery_control);
+        SwitchPreferenceCompat batteryControl = (SwitchPreferenceCompat)findPreference(keyCustomBatteryControl);
+        batteryControl.setChecked(false);
+        pref.edit().putBoolean(batteryControl.getKey(), false).apply();
     }
 }

@@ -7,7 +7,7 @@
     <include
         layout="@layout/statusbar_kitkat"/>
 
-    <android.support.v7.widget.Toolbar
+    <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
@@ -16,11 +16,12 @@
         android:background="?attr/colorPrimary"
         app:layout_scrollFlags="enterAlways"
         android:transitionName="actionBar"
-        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+        app:popupTheme="?attr/popupTheme"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
 
-    <FrameLayout
-        android:id="@+id/fragment_container"
+    <fragment
+        class="org.proninyaroslav.libretorrent.settings.SettingsFragment"
+        android:id="@+id/settings_fragmentContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/toolbar" />

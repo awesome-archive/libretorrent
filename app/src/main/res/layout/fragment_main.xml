@@ -6,17 +6,17 @@
     android:layout_width="match_parent"
     android:gravity="center">
 
-    <android.support.design.widget.CoordinatorLayout
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:id="@+id/main_coordinator_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <android.support.design.widget.AppBarLayout
+        <com.google.android.material.appbar.AppBarLayout
             android:id="@+id/app_bar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <android.support.v7.widget.Toolbar
+            <androidx.appcompat.widget.Toolbar
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="?attr/actionBarSize"
@@ -24,15 +24,17 @@
                 android:background="?attr/colorPrimary"
                 app:layout_scrollFlags="enterAlways"
                 android:transitionName="actionBar"
-                app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
-                android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
-        </android.support.design.widget.AppBarLayout>
+                app:popupTheme="?attr/popupTheme"
+                android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+                android:focusable="true" />
+        </com.google.android.material.appbar.AppBarLayout>
 
         <org.proninyaroslav.libretorrent.customviews.EmptyRecyclerView
             android:id="@+id/torrent_list"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_below="@id/app_bar"
+            android:scrollbars="vertical"
             app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
         <TextView
@@ -78,7 +80,8 @@
             fab:menu_labels_maxLines="-1"
             fab:menu_labels_position="left"
             fab:menu_openDirection="up"
-            fab:menu_backgroundColor="@android:color/transparent">
+            fab:menu_backgroundColor="@android:color/transparent"
+            android:focusable="true">
 
             <com.github.clans.fab.FloatingActionButton
                 android:id="@+id/add_link_button"
@@ -101,6 +104,17 @@
                 app:fab_colorRipple="@color/accent_light"
                 fab:fab_size="mini"
                 fab:fab_label="@string/open_file" />
+
+            <com.github.clans.fab.FloatingActionButton
+                android:id="@+id/create_torrent_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_mode_edit_white_18dp"
+                app:fab_colorNormal="@color/accent"
+                app:fab_colorPressed="@color/accent_dark"
+                app:fab_colorRipple="@color/accent_light"
+                fab:fab_size="mini"
+                fab:fab_label="@string/create_torrent" />
         </com.github.clans.fab.FloatingActionMenu>
-    </android.support.design.widget.CoordinatorLayout>
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
 </RelativeLayout>

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016, 2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -19,28 +19,42 @@
 
 package org.proninyaroslav.libretorrent.dialogs.filemanager;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
-import android.support.annotation.Nullable;
-import android.support.design.widget.FloatingActionButton;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.DefaultItemAnimator;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.Toolbar;
+import androidx.annotation.Nullable;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.DefaultItemAnimator;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.appcompat.widget.Toolbar;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.TextView;
 
-import org.acra.ACRA;
-import org.acra.ReportField;
 import org.proninyaroslav.libretorrent.R;
 import org.proninyaroslav.libretorrent.adapters.FileManagerAdapter;
+import org.proninyaroslav.libretorrent.adapters.FileManagerSpinnerAdapter;
 import org.proninyaroslav.libretorrent.core.utils.FileIOUtils;
 import org.proninyaroslav.libretorrent.core.utils.Utils;
 import org.proninyaroslav.libretorrent.dialogs.BaseAlertDialog;
@@ -50,6 +64,7 @@ import org.proninyaroslav.libretorrent.settings.SettingsManager;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -66,23 +81,37 @@ public class FileManagerDialog extends AppCompatActivity
     private static final String TAG = FileManagerDialog.class.getSimpleName();
     private static final String TAG_CUR_DIR = "cur_dir";
     private static final String TAG_LIST_FILES_STATE = "list_files_state";
+    private static final String TAG_SPINNER_POS = "spinner_pos";
 
     private static final String TAG_NEW_FOLDER_DIALOG = "new_folder_dialog";
     private static final String TAG_ERR_CREATE_DIR = "err_create_dir";
     private static final String TAG_ERR_WRITE_PERM = "err_write_perm";
     private static final String TAG_ERROR_OPEN_DIR_DIALOG = "error_open_dir_dialog";
+    private static final String TAG_FILE_EXISTS = "file_exists";
 
     public static final String TAG_CONFIG = "config";
     public static final String TAG_RETURNED_PATH = "returned_path";
 
     private Toolbar toolbar;
-    private TextView titleCurrFolderPath;
+    private TextView titleCurFolderPath;
+    private Spinner storageList;
+    private FileManagerSpinnerAdapter storageAdapter;
+    /*
+     * Prevent call onItemSelected after set OnItemSelectedListener,
+     * see http://stackoverflow.com/questions/21747917/undesired-onitemselected-calls/21751327#21751327
+     */
+    private int spinnerPos = 0;
     private RecyclerView listFiles;
     private LinearLayoutManager layoutManager;
     /* Save state scrolling */
     private Parcelable filesListState;
+    private CoordinatorLayout coordinatorLayout;
+    private SwipeRefreshLayout swipeRefreshLayout;
     private FileManagerAdapter adapter;
     private FloatingActionButton addFolder;
+    private TextInputLayout fileNameLayout;
+    private TextInputEditText fileNameEditText;
+    private MediaReceiver mediaReceiver = new MediaReceiver(this);
 
     private String startDir;
     /* Current directory */
@@ -91,9 +120,31 @@ public class FileManagerDialog extends AppCompatActivity
     private int showMode;
     private Exception sentError;
 
+    /*
+     * The receiver for mount and eject actions of removable storage.
+     */
+
+    public class MediaReceiver extends BroadcastReceiver
+    {
+        WeakReference<FileManagerDialog> dialog;
+
+        MediaReceiver(FileManagerDialog dialog)
+        {
+            this.dialog = new WeakReference<>(dialog);
+        }
+
+        @Override
+        public void onReceive(Context context, Intent intent)
+        {
+            if (dialog.get() != null)
+                dialog.get().reloadSpinner();
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
+        setTheme(Utils.getAppTheme(getApplicationContext()));
         super.onCreate(savedInstanceState);
 
         Intent intent = getIntent();
@@ -107,20 +158,18 @@ public class FileManagerDialog extends AppCompatActivity
         showMode = config.showMode;
 
         setContentView(R.layout.activity_filemanager_dialog);
-
         Utils.showColoredStatusBar_KitKat(this);
 
         String title = config.title;
-        toolbar = (Toolbar) findViewById(R.id.toolbar);
+        toolbar = findViewById(R.id.toolbar);
         if (toolbar != null) {
             if (title == null || TextUtils.isEmpty(title)) {
-                if (showMode == FileManagerConfig.DIR_CHOOSER_MODE) {
+                if (showMode == FileManagerConfig.DIR_CHOOSER_MODE)
                     toolbar.setTitle(R.string.dir_chooser_title);
-
-                } else if(showMode == FileManagerConfig.FILE_CHOOSER_MODE) {
+                else if (showMode == FileManagerConfig.FILE_CHOOSER_MODE)
                     toolbar.setTitle(R.string.file_chooser_title);
-                }
-
+                else if (showMode == FileManagerConfig.SAVE_FILE_MODE)
+                    toolbar.setTitle(R.string.save_file);
             } else {
                 toolbar.setTitle(title);
             }
@@ -128,16 +177,24 @@ public class FileManagerDialog extends AppCompatActivity
             setSupportActionBar(toolbar);
         }
 
-        if (getSupportActionBar() != null) {
+        if (getSupportActionBar() != null)
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        }
 
         String path = config.path;
         if (path == null || TextUtils.isEmpty(path)) {
-            SettingsManager pref = new SettingsManager(this.getApplicationContext());
-
+            SharedPreferences pref = SettingsManager.getPreferences(this.getApplicationContext());
             startDir = pref.getString(getString(R.string.pref_key_filemanager_last_dir),
-                    FileIOUtils.getDefaultDownloadPath());
+                                      SettingsManager.Default.fileManagerLastDir);
+
+            if (startDir != null) {
+                File dir = new File(startDir);
+                if (!dir.exists() || (config.showMode == FileManagerConfig.DIR_CHOOSER_MODE ||
+                                      config.showMode == FileManagerConfig.SAVE_FILE_MODE ? !dir.canWrite() : !dir.canRead()))
+                    startDir = FileIOUtils.getDefaultDownloadPath();
+            } else {
+                startDir = FileIOUtils.getDefaultDownloadPath();
+            }
+
         } else {
             startDir = path;
         }
@@ -147,6 +204,7 @@ public class FileManagerDialog extends AppCompatActivity
 
             if (savedInstanceState != null) {
                 curDir = savedInstanceState.getString(TAG_CUR_DIR);
+                spinnerPos = savedInstanceState.getInt(TAG_SPINNER_POS);
             } else {
                 curDir = startDir;
             }
@@ -156,39 +214,94 @@ public class FileManagerDialog extends AppCompatActivity
         }
 
         if (showMode == FileManagerConfig.DIR_CHOOSER_MODE) {
-            addFolder = (FloatingActionButton) findViewById(R.id.add_folder_button);
-            addFolder.setVisibility(View.VISIBLE);
-            addFolder.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (getFragmentManager().findFragmentByTag(TAG_NEW_FOLDER_DIALOG) == null) {
-                        BaseAlertDialog inputNameDialog = BaseAlertDialog.newInstance(
-                                getString(R.string.dialog_new_folder_title),
-                                null,
-                                R.layout.dialog_text_input,
-                                getString(R.string.ok),
-                                getString(R.string.cancel),
-                                null,
-                                R.style.BaseTheme_Dialog,
-                                FileManagerDialog.this);
+            addFolder = findViewById(R.id.add_folder_button);
+            addFolder.show();
+            addFolder.setOnClickListener((View v) -> {
+                if (getSupportFragmentManager().findFragmentByTag(TAG_NEW_FOLDER_DIALOG) == null) {
+                    BaseAlertDialog inputNameDialog = BaseAlertDialog.newInstance(
+                            getString(R.string.dialog_new_folder_title),
+                            null,
+                            R.layout.dialog_text_input,
+                            getString(R.string.ok),
+                            getString(R.string.cancel),
+                            null,
+                            FileManagerDialog.this);
 
-                        inputNameDialog.show(getFragmentManager(), TAG_NEW_FOLDER_DIALOG);
-                    }
+                    inputNameDialog.show(getSupportFragmentManager(), TAG_NEW_FOLDER_DIALOG);
                 }
             });
         }
+        if (showMode == FileManagerConfig.SAVE_FILE_MODE) {
+            fileNameEditText = findViewById(R.id.file_name);
+            fileNameLayout = findViewById(R.id.layout_file_name);
+            fileNameLayout.setVisibility(View.VISIBLE);
+            if (savedInstanceState == null)
+                fileNameEditText.setText(config.fileName);
+            fileNameEditText.addTextChangedListener(new TextWatcher()
+            {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) { /* Nothing */ }
 
-        titleCurrFolderPath = (TextView) findViewById(R.id.title_cur_folder_path);
-        titleCurrFolderPath.setText(curDir);
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count)
+                {
+                    fileNameLayout.setErrorEnabled(false);
+                    fileNameLayout.setError(null);
+                }
 
-        listFiles = (RecyclerView) findViewById(R.id.file_list);
+                @Override
+                public void afterTextChanged(Editable s) { /* Nothing */ }
+            });
+        }
+
+        listFiles = findViewById(R.id.file_list);
         layoutManager = new LinearLayoutManager(this);
         listFiles.setLayoutManager(layoutManager);
         listFiles.setItemAnimator(new DefaultItemAnimator());
         adapter = new FileManagerAdapter(getChildItems(curDir), config.highlightFileTypes,
-                                          this, R.layout.item_filemanager, this);
+                                         this, R.layout.item_filemanager, this);
 
         listFiles.setAdapter(adapter);
+
+        coordinatorLayout = findViewById(R.id.coordinator_layout);
+        swipeRefreshLayout = findViewById(R.id.swipe_container);
+        swipeRefreshLayout.setColorSchemeColors(getResources().getColor(R.color.accent));
+        swipeRefreshLayout.setOnRefreshListener(this::refreshDir);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            storageAdapter = new FileManagerSpinnerAdapter(this);
+            storageAdapter.setTitle(curDir);
+            storageAdapter.addItems(getStorageList());
+            storageList = findViewById(R.id.storage_spinner);
+            storageList.setAdapter(storageAdapter);
+            storageList.setTag(spinnerPos);
+            storageList.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener()
+            {
+                @Override
+                public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l)
+                {
+                    if (((Integer)storageList.getTag()) == i)
+                        return;
+
+                    spinnerPos = i;
+                    storageList.setTag(i);
+                    curDir = storageAdapter.getItem(i);
+                    reloadData();
+                }
+
+                @Override
+                public void onNothingSelected(AdapterView<?> adapterView)
+                {
+                /* Nothing */
+                }
+            });
+
+            registerMediaReceiver();
+
+        } else {
+            titleCurFolderPath = findViewById(R.id.title_cur_folder_path);
+            titleCurFolderPath.setText(curDir);
+        }
     }
 
     @Override
@@ -198,6 +311,7 @@ public class FileManagerDialog extends AppCompatActivity
 
         filesListState = layoutManager.onSaveInstanceState();
         outState.putParcelable(TAG_LIST_FILES_STATE, filesListState);
+        outState.putInt(TAG_SPINNER_POS, spinnerPos);
 
         super.onSaveInstanceState(outState);
     }
@@ -207,9 +321,17 @@ public class FileManagerDialog extends AppCompatActivity
     {
         super.onRestoreInstanceState(savedInstanceState);
 
-        if (savedInstanceState != null) {
+        if (savedInstanceState != null)
             filesListState = savedInstanceState.getParcelable(TAG_LIST_FILES_STATE);
-        }
+    }
+
+    @Override
+    protected void onDestroy()
+    {
+        super.onDestroy();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
+            unregisterMediaReceiver();
     }
 
     @Override
@@ -217,24 +339,40 @@ public class FileManagerDialog extends AppCompatActivity
     {
         super.onResume();
 
-        if (filesListState != null) {
+        if (filesListState != null)
             layoutManager.onRestoreInstanceState(filesListState);
+    }
+
+    private void registerMediaReceiver()
+    {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_MEDIA_MOUNTED);
+        filter.addAction(Intent.ACTION_MEDIA_UNMOUNTED);
+        filter.addDataScheme("file");
+        registerReceiver(mediaReceiver, filter);
+    }
+
+    private void unregisterMediaReceiver()
+    {
+        try {
+            unregisterReceiver(mediaReceiver);
+        } catch (IllegalArgumentException e) {
+            /* Ignore non-registered receiver */
         }
     }
 
     @Override
     public void onPositiveClicked(@Nullable View v)
     {
-        if (v == null) {
+        if (v == null)
             return;
-        }
 
-        if (getFragmentManager().findFragmentByTag(TAG_NEW_FOLDER_DIALOG) != null) {
-            EditText nameField = (EditText) v.findViewById(R.id.text_input_dialog);
+        if (getSupportFragmentManager().findFragmentByTag(TAG_NEW_FOLDER_DIALOG) != null) {
+            EditText nameField = v.findViewById(R.id.text_input_dialog);
             String name = nameField.getText().toString();
             if (!TextUtils.isEmpty(name)) {
                 if (!createDirectory(curDir + File.separator + name)) {
-                    if (getFragmentManager().findFragmentByTag(TAG_ERR_CREATE_DIR) == null) {
+                    if (getSupportFragmentManager().findFragmentByTag(TAG_ERR_CREATE_DIR) == null) {
                         BaseAlertDialog errDialog = BaseAlertDialog.newInstance(
                                 getString(R.string.error),
                                 getString(R.string.error_dialog_new_folder),
@@ -242,21 +380,19 @@ public class FileManagerDialog extends AppCompatActivity
                                 getString(R.string.ok),
                                 null,
                                 null,
-                                R.style.BaseTheme_Dialog,
                                 this);
 
-                        errDialog.show(getFragmentManager(), TAG_ERR_CREATE_DIR);
+                        errDialog.show(getSupportFragmentManager(), TAG_ERR_CREATE_DIR);
                     }
 
-                } else {
-                    chooseDirectory(curDir + File.separator + name);
+                } else if (chooseDirectory(curDir + File.separator + name)) {
                     reloadData();
                 }
             }
 
-        } else if (getFragmentManager().findFragmentByTag(TAG_ERROR_OPEN_DIR_DIALOG) != null) {
+        } else if (getSupportFragmentManager().findFragmentByTag(TAG_ERROR_OPEN_DIR_DIALOG) != null) {
             if (sentError != null) {
-                EditText editText = (EditText) v.findViewById(R.id.comment);
+                EditText editText = v.findViewById(R.id.comment);
                 String comment = editText.getText().toString();
 
                 Utils.reportError(sentError, comment);
@@ -285,9 +421,9 @@ public class FileManagerDialog extends AppCompatActivity
             return;
         }
 
-        if (objectType == FileManagerNode.Type.DIR) {
-            chooseDirectory(curDir + File.separator + objectName);
+        if (objectType == FileManagerNode.Type.DIR && chooseDirectory(curDir + File.separator + objectName)) {
             reloadData();
+
         } else if (objectType == FileManagerNode.Type.FILE
                    && showMode == FileManagerConfig.FILE_CHOOSER_MODE) {
             saveLastDirPath();
@@ -299,11 +435,22 @@ public class FileManagerDialog extends AppCompatActivity
         }
     }
 
-    private void chooseDirectory(String dir)
+    private boolean chooseDirectory(String dir)
     {
         File dirFile = new File(dir);
         if (!dirFile.exists() || !dirFile.isDirectory()) {
             dir = startDir;
+
+        } else if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)) {
+            if ((config.showMode == FileManagerConfig.DIR_CHOOSER_MODE ||
+                config.showMode == FileManagerConfig.SAVE_FILE_MODE) && !dirFile.canWrite()) {
+                Snackbar.make(coordinatorLayout,
+                        R.string.permission_denied,
+                        Snackbar.LENGTH_SHORT)
+                        .show();
+
+                return false;
+            }
         }
 
         try {
@@ -314,22 +461,23 @@ public class FileManagerDialog extends AppCompatActivity
 
             Log.e(TAG, Log.getStackTraceString(e));
 
-            if (getFragmentManager().findFragmentByTag(TAG_ERROR_OPEN_DIR_DIALOG) == null) {
+            if (getSupportFragmentManager().findFragmentByTag(TAG_ERROR_OPEN_DIR_DIALOG) == null) {
                 ErrorReportAlertDialog errDialog = ErrorReportAlertDialog.newInstance(
                         getApplicationContext(),
                         getString(R.string.error),
                         getString(R.string.error_open_dir),
                         Log.getStackTraceString(e),
-                        R.style.BaseTheme_Dialog,
                         this);
 
-                errDialog.show(getFragmentManager(), TAG_ERROR_OPEN_DIR_DIALOG);
+                errDialog.show(getSupportFragmentManager(), TAG_ERROR_OPEN_DIR_DIALOG);
             }
 
-            return;
+            return false;
         }
 
         curDir = dir;
+
+        return true;
     }
 
     /*
@@ -338,34 +486,26 @@ public class FileManagerDialog extends AppCompatActivity
 
     private List<FileManagerNode> getChildItems(String dir)
     {
-        List<FileManagerNode> items = new ArrayList<FileManagerNode>();
+        List<FileManagerNode> items = new ArrayList<>();
 
         try {
             File dirFile = new File(dir);
-            if (!dirFile.exists() || !dirFile.isDirectory()) {
+            if (!dirFile.exists() || !dirFile.isDirectory())
                 return items;
-            }
 
             /* Adding parent dir for navigation */
-            if (!curDir.equals(FileManagerNode.ROOT_DIR)) {
-                items.add(0, new FileManagerNode(FileManagerNode.PARENT_DIR,
-                        FileNode.Type.DIR));
-            }
+            if (!curDir.equals(FileManagerNode.ROOT_DIR))
+                items.add(0, new FileManagerNode(FileManagerNode.PARENT_DIR, FileNode.Type.DIR, true));
 
-            for (File file : dirFile.listFiles()) {
-                if (showMode == FileManagerConfig.DIR_CHOOSER_MODE) {
-                    if (file.isDirectory()) {
-                        items.add(new FileManagerNode(file.getName(),
-                                FileNode.Type.DIR));
-                    }
-
-                } else if (showMode == FileManagerConfig.FILE_CHOOSER_MODE) {
-                    if (file.isDirectory()) {
-                        items.add(new FileManagerNode(file.getName(), FileManagerNode.Type.DIR));
-                    } else {
-                        items.add(new FileManagerNode(file.getName(), FileManagerNode.Type.FILE));
-                    }
-                }
+            File[] files = dirFile.listFiles();
+            if (files == null)
+                return items;
+            for (File file : files) {
+                if (file.isDirectory())
+                    items.add(new FileManagerNode(file.getName(), FileNode.Type.DIR, true));
+                else
+                    items.add(new FileManagerNode(file.getName(), FileManagerNode.Type.FILE,
+                            showMode == FileManagerConfig.FILE_CHOOSER_MODE));
             }
 
         } catch (Exception e) {
@@ -388,22 +528,90 @@ public class FileManagerDialog extends AppCompatActivity
 
     private void backToParent()
     {
+        if ((Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)) {
+            File parentDir = new File(curDir).getParentFile();
+
+            if ((config.showMode == FileManagerConfig.DIR_CHOOSER_MODE ||
+                 config.showMode == FileManagerConfig.SAVE_FILE_MODE) && !parentDir.canWrite()) {
+                Snackbar.make(coordinatorLayout,
+                        R.string.permission_denied,
+                        Snackbar.LENGTH_SHORT)
+                        .show();
+
+                return;
+            }
+        }
+
         curDir = new File(curDir).getParent();
+
         reloadData();
     }
 
-    final synchronized void reloadData()
+    private void refreshDir()
     {
-        titleCurrFolderPath.setText(curDir);
+        swipeRefreshLayout.setRefreshing(true);
+        reloadData();
+        swipeRefreshLayout.setRefreshing(false);
+    }
+
+    private final synchronized void reloadData()
+    {
+        if (adapter == null)
+            return;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
+            if (storageAdapter != null)
+                storageAdapter.setTitle(curDir);
+        else
+            titleCurFolderPath.setText(curDir);
+        adapter.clearFiles();
+
+        List<FileManagerNode> childItems = getChildItems(curDir);
+        if (childItems.size() == 0)
+            adapter.notifyDataSetChanged();
+        else
+            adapter.addFiles(childItems);
+    }
+
+    private ArrayList<FileManagerSpinnerAdapter.StorageSpinnerItem> getStorageList()
+    {
+        ArrayList<FileManagerSpinnerAdapter.StorageSpinnerItem> items = new ArrayList<>();
+        ArrayList<String> storageList = FileIOUtils.getStorageList(getApplicationContext());
+
+        if (!storageList.isEmpty()) {
+            String primaryStorage = storageList.get(0);
+            items.add(new FileManagerSpinnerAdapter.StorageSpinnerItem(getString(R.string.internal_storage_name),
+                      primaryStorage,
+                      FileIOUtils.getFreeSpace(primaryStorage)));
+
+            for (int i = 1; i < storageList.size(); i++) {
+                String template = getString(R.string.external_storage_name);
+                items.add(new FileManagerSpinnerAdapter.StorageSpinnerItem(String.format(template, i),
+                        storageList.get(i),
+                        FileIOUtils.getFreeSpace(storageList.get(i))));
+            }
+        }
+
+        return items;
+    }
+
+    final synchronized void reloadSpinner()
+    {
+        if (storageAdapter == null || adapter == null)
+            return;
+
+        storageAdapter.clear();
+        storageAdapter.addItems(getStorageList());
+        storageAdapter.setTitle(curDir);
+        storageAdapter.notifyDataSetChanged();
 
         adapter.clearFiles();
 
         List<FileManagerNode> childItems = getChildItems(curDir);
-        if (childItems.size() == 0) {
+        if (childItems.size() == 0)
             adapter.notifyDataSetChanged();
-        } else {
+        else
             adapter.addFiles(childItems);
-        }
     }
 
     @Override
@@ -421,21 +629,19 @@ public class FileManagerDialog extends AppCompatActivity
     {
         super.onPrepareOptionsMenu(menu);
 
-        if (showMode == FileManagerConfig.FILE_CHOOSER_MODE) {
+        if (showMode == FileManagerConfig.FILE_CHOOSER_MODE)
             menu.findItem(R.id.filemanager_ok_menu).setVisible(false);
-        }
 
         return true;
     }
 
     private void saveLastDirPath()
     {
-        SettingsManager pref = new SettingsManager(this.getApplicationContext());
+        SharedPreferences pref = SettingsManager.getPreferences(this.getApplicationContext());
 
         String keyFileManagerLastDir = getString(R.string.pref_key_filemanager_last_dir);
-        if (curDir != null && !pref.getString(keyFileManagerLastDir, "").equals(curDir)) {
-            pref.put(keyFileManagerLastDir, curDir);
-        }
+        if (curDir != null && !pref.getString(keyFileManagerLastDir, "").equals(curDir))
+            pref.edit().putString(keyFileManagerLastDir, curDir).apply();
     }
 
     @Override
@@ -452,12 +658,18 @@ public class FileManagerDialog extends AppCompatActivity
                 onBackPressed();
                 break;
             case R.id.filemanager_home_menu:
-                String path = FileIOUtils.getUserDirPath();
-                if (!TextUtils.isEmpty(path)) {
+                String path = "";
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)
+                    if (storageList != null)
+                        path = storageList.getSelectedItem().toString();
+                else
+                    path = FileIOUtils.getUserDirPath();
+
+                if (path != null && !TextUtils.isEmpty(path)) {
                     curDir = path;
                     reloadData();
                 } else {
-                    if (getFragmentManager().findFragmentByTag(TAG_ERROR_OPEN_DIR_DIALOG) == null) {
+                    if (getSupportFragmentManager().findFragmentByTag(TAG_ERROR_OPEN_DIR_DIALOG) == null) {
                         BaseAlertDialog errDialog = BaseAlertDialog.newInstance(
                                 getString(R.string.error),
                                 getString(R.string.error_open_dir),
@@ -465,16 +677,18 @@ public class FileManagerDialog extends AppCompatActivity
                                 getString(R.string.ok),
                                 null,
                                 null,
-                                R.style.BaseTheme_Dialog,
                                 this);
 
-                        errDialog.show(getFragmentManager(), TAG_ERROR_OPEN_DIR_DIALOG);
+                        errDialog.show(getSupportFragmentManager(), TAG_ERROR_OPEN_DIR_DIALOG);
                     }
                 }
                 break;
             case R.id.filemanager_ok_menu:
-                if (!new File(curDir).canWrite()) {
-                    if (getFragmentManager().findFragmentByTag(TAG_ERR_WRITE_PERM) == null) {
+                String returnPath = curDir;
+                File dir = new File(curDir);
+                if ((config.showMode == FileManagerConfig.DIR_CHOOSER_MODE ||
+                     config.showMode == FileManagerConfig.SAVE_FILE_MODE ? !dir.canWrite() : !dir.canRead())) {
+                    if (getSupportFragmentManager().findFragmentByTag(TAG_ERR_WRITE_PERM) == null) {
                         BaseAlertDialog permDialog = BaseAlertDialog.newInstance(
                                 getString(R.string.error),
                                 getString(R.string.error_perm_write_in_folder),
@@ -482,21 +696,61 @@ public class FileManagerDialog extends AppCompatActivity
                                 getString(R.string.ok),
                                 null,
                                 null,
-                                R.style.BaseTheme_Dialog,
                                 this);
 
-                        permDialog.show(getFragmentManager(), TAG_ERR_WRITE_PERM);
+                        permDialog.show(getSupportFragmentManager(), TAG_ERR_WRITE_PERM);
                     }
 
                     return true;
                 }
+                if (config.showMode == FileManagerConfig.SAVE_FILE_MODE) {
+                    if (!checkFileNameField())
+                        return true;
+
+                    returnPath = curDir + File.separator + fileNameEditText.getText().toString();
+                    if (new File(returnPath).exists()) {
+                        if (getSupportFragmentManager().findFragmentByTag(TAG_FILE_EXISTS) == null) {
+                            BaseAlertDialog permDialog = BaseAlertDialog.newInstance(
+                                    getString(R.string.error),
+                                    getString(R.string.error_file_exists),
+                                    0,
+                                    getString(R.string.ok),
+                                    null,
+                                    null,
+                                    this);
+
+                            permDialog.show(getSupportFragmentManager(), TAG_FILE_EXISTS);
+                        }
+
+                        return true;
+                    }
+                }
 
                 Intent i = new Intent();
-                i.putExtra(TAG_RETURNED_PATH, curDir);
+                i.putExtra(TAG_RETURNED_PATH, returnPath);
                 setResult(RESULT_OK, i);
                 finish();
                 break;
         }
+
+        return true;
+    }
+
+    private boolean checkFileNameField()
+    {
+        if (fileNameEditText == null || fileNameLayout == null)
+            return false;
+
+        if (TextUtils.isEmpty(fileNameEditText.getText())) {
+            fileNameLayout.setErrorEnabled(true);
+            fileNameLayout.setError(getString(R.string.file_name_is_empty));
+            fileNameLayout.requestFocus();
+
+            return false;
+        }
+
+        fileNameLayout.setErrorEnabled(false);
+        fileNameLayout.setError(null);
 
         return true;
     }

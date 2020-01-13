@@ -21,15 +21,17 @@ package org.proninyaroslav.libretorrent.settings;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.support.v4.app.FragmentTransaction;
-import android.support.v7.preference.Preference;
+import androidx.fragment.app.FragmentTransaction;
+import androidx.preference.ListPreference;
+import androidx.preference.Preference;
+import androidx.preference.SwitchPreferenceCompat;
 import android.text.InputFilter;
 import android.text.TextUtils;
 
-import com.takisoft.fix.support.v7.preference.EditTextPreference;
-import com.takisoft.fix.support.v7.preference.PreferenceFragmentCompat;
-import com.takisoft.fix.support.v7.preference.SwitchPreferenceCompat;
+import com.takisoft.preferencex.EditTextPreference;
+import com.takisoft.preferencex.PreferenceFragmentCompat;
 
 import org.proninyaroslav.libretorrent.InputFilterMinMax;
 import org.proninyaroslav.libretorrent.R;
@@ -89,98 +91,95 @@ public class NetworkSettingsFragment extends PreferenceFragmentCompat
     {
         super.onCreate(savedInstanceState);
 
-        SettingsManager pref = new SettingsManager(getActivity().getApplicationContext());
+        SharedPreferences pref = SettingsManager.getPreferences(getActivity());
 
         String keyEnableDht = getString(R.string.pref_key_enable_dht);
-        SwitchPreferenceCompat enableDht = (SwitchPreferenceCompat) findPreference(keyEnableDht);
-        enableDht.setChecked(pref.getBoolean(keyEnableDht, TorrentEngine.DEFAULT_DHT_ENABLED));
-        bindOnPreferenceChangeListener(enableDht);
+        SwitchPreferenceCompat enableDht = (SwitchPreferenceCompat)findPreference(keyEnableDht);
+        enableDht.setChecked(pref.getBoolean(keyEnableDht, SettingsManager.Default.enableDht));
 
         String keyEnableLsd = getString(R.string.pref_key_enable_lsd);
-        SwitchPreferenceCompat enableLsd = (SwitchPreferenceCompat) findPreference(keyEnableLsd);
-        enableLsd.setChecked(pref.getBoolean(keyEnableLsd, TorrentEngine.DEFAULT_LSD_ENABLED));
-        bindOnPreferenceChangeListener(enableLsd);
+        SwitchPreferenceCompat enableLsd = (SwitchPreferenceCompat)findPreference(keyEnableLsd);
+        enableLsd.setChecked(pref.getBoolean(keyEnableLsd, SettingsManager.Default.enableLsd));
 
         String keyEnableUtp = getString(R.string.pref_key_enable_utp);
-        SwitchPreferenceCompat enableUtp = (SwitchPreferenceCompat) findPreference(keyEnableUtp);
-        enableUtp.setChecked(pref.getBoolean(keyEnableUtp, TorrentEngine.DEFAULT_UTP_ENABLED));
-        bindOnPreferenceChangeListener(enableUtp);
+        SwitchPreferenceCompat enableUtp = (SwitchPreferenceCompat)findPreference(keyEnableUtp);
+        enableUtp.setChecked(pref.getBoolean(keyEnableUtp, SettingsManager.Default.enableUtp));
 
         String keyEnableUpnp = getString(R.string.pref_key_enable_upnp);
-        SwitchPreferenceCompat enableUpnp = (SwitchPreferenceCompat) findPreference(keyEnableUpnp);
-        enableUpnp.setChecked(pref.getBoolean(keyEnableUpnp, TorrentEngine.DEFAULT_UPNP_ENABLED));
-        bindOnPreferenceChangeListener(enableUpnp);
+        SwitchPreferenceCompat enableUpnp = (SwitchPreferenceCompat)findPreference(keyEnableUpnp);
+        enableUpnp.setChecked(pref.getBoolean(keyEnableUpnp, SettingsManager.Default.enableUpnp));
 
         String keyEnableNatpmp = getString(R.string.pref_key_enable_natpmp);
-        SwitchPreferenceCompat enableNatpmp = (SwitchPreferenceCompat) findPreference(keyEnableNatpmp);
-        enableNatpmp.setChecked(pref.getBoolean(keyEnableNatpmp, TorrentEngine.DEFAULT_NATPMP_ENABLED));
-        bindOnPreferenceChangeListener(enableNatpmp);
+        SwitchPreferenceCompat enableNatpmp = (SwitchPreferenceCompat)findPreference(keyEnableNatpmp);
+        enableNatpmp.setChecked(pref.getBoolean(keyEnableNatpmp, SettingsManager.Default.enableNatPmp));
 
         String keyRandomPort = getString(R.string.pref_key_use_random_port);
-        SwitchPreferenceCompat randomPort = (SwitchPreferenceCompat) findPreference(keyRandomPort);
+        SwitchPreferenceCompat randomPort = (SwitchPreferenceCompat)findPreference(keyRandomPort);
         randomPort.setDisableDependentsState(true);
-        randomPort.setChecked(pref.getBoolean(keyRandomPort, true));
-        bindOnPreferenceChangeListener(randomPort);
+        randomPort.setChecked(pref.getBoolean(keyRandomPort, SettingsManager.Default.useRandomPort));
 
         InputFilter[] portFilter =
-                new InputFilter[]{ new InputFilterMinMax(0, 10000)};
+                new InputFilter[]{ new InputFilterMinMax(1, TorrentEngine.Settings.MAX_PORT_NUMBER)};
         String keyPort = getString(R.string.pref_key_port);
-        EditTextPreference port = (EditTextPreference) findPreference(keyPort);
-        int portNumber = pref.getInt(keyPort, -1);
-        String value = (portNumber == -1 ? "" : Integer.toString(portNumber));
+        EditTextPreference port = (EditTextPreference)findPreference(keyPort);
+        String value = Integer.toString(pref.getInt(keyPort, SettingsManager.Default.port));
         port.getEditText().setFilters(portFilter);
         port.setSummary(value);
         port.setText(value);
         bindOnPreferenceChangeListener(port);
 
+        boolean enableAdvancedEncryptSettings;
+
+        String keyEncryptMode = getString(R.string.pref_key_enc_mode);
+        ListPreference encryptMode = (ListPreference)findPreference(keyEncryptMode);
+        int type = pref.getInt(keyEncryptMode, SettingsManager.Default.encryptMode(getContext()));
+        encryptMode.setValueIndex(type);
+        String typesName[] = getResources().getStringArray(R.array.pref_enc_mode_entries);
+        encryptMode.setSummary(typesName[type]);
+        enableAdvancedEncryptSettings = type != Integer.parseInt(getString(R.string.pref_enc_mode_disable_value));
+        bindOnPreferenceChangeListener(encryptMode);
+
         String keyEncryptInConnections = getString(R.string.pref_key_enc_in_connections);
         SwitchPreferenceCompat encryptInConnections =
-                (SwitchPreferenceCompat) findPreference(keyEncryptInConnections);
+                (SwitchPreferenceCompat)findPreference(keyEncryptInConnections);
+        encryptInConnections.setEnabled(enableAdvancedEncryptSettings);
         encryptInConnections.setChecked(pref.getBoolean(keyEncryptInConnections,
-                TorrentEngine.DEFAULT_ENCRYPT_IN_CONNECTIONS));
-        bindOnPreferenceChangeListener(encryptInConnections);
+                                                        SettingsManager.Default.encryptInConnections));
 
         String keyEncryptOutConnections = getString(R.string.pref_key_enc_out_connections);
         SwitchPreferenceCompat encryptOutConnections =
-                (SwitchPreferenceCompat) findPreference(keyEncryptOutConnections);
+                (SwitchPreferenceCompat)findPreference(keyEncryptOutConnections);
+        encryptOutConnections.setEnabled(enableAdvancedEncryptSettings);
         encryptOutConnections.setChecked(pref.getBoolean(keyEncryptOutConnections,
-                TorrentEngine.DEFAULT_ENCRYPT_OUT_CONNECTIONS));
-        bindOnPreferenceChangeListener(encryptOutConnections);
+                                                         SettingsManager.Default.encryptOutConnections));
 
         String keyIpFilter = getString(R.string.pref_key_enable_ip_filtering);
-        SwitchPreferenceCompat ipFilter = (SwitchPreferenceCompat) findPreference(keyIpFilter);
-        ipFilter.setChecked(pref.getBoolean(keyIpFilter, false));
-        bindOnPreferenceChangeListener(ipFilter);
+        SwitchPreferenceCompat ipFilter = (SwitchPreferenceCompat)findPreference(keyIpFilter);
+        ipFilter.setChecked(pref.getBoolean(keyIpFilter, SettingsManager.Default.enableIpFiltering));
 
         String keyIpFilterFile = getString(R.string.pref_key_ip_filtering_file);
         Preference ipFilterFile = findPreference(keyIpFilterFile);
-        ipFilterFile.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener()
-        {
-            @Override
-            public boolean onPreferenceClick(Preference preference)
-            {
-                fileChooseDialog();
+        ipFilterFile.setOnPreferenceClickListener((Preference preference) -> {
+            fileChooseDialog();
 
-                return true;
-            }
+            return true;
         });
 
-        Preference proxy = findPreference(getString(R.string.pref_key_proxy_settings));
-        proxy.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener()
-        {
-            @Override
-            public boolean onPreferenceClick(Preference preference)
-            {
-                if (Utils.isTablet(getActivity().getApplicationContext())) {
-                    setFragment(ProxySettingsFragment.newInstance(),
-                            getString(R.string.pref_proxy_settings_title));
-                } else {
-                    startActivity(ProxySettingsFragment.class,
-                            getString(R.string.pref_proxy_settings_title));
-                }
+        String keyShowNatErrors = getString(R.string.pref_key_show_nat_errors);
+        SwitchPreferenceCompat showNatErrors = (SwitchPreferenceCompat)findPreference(keyShowNatErrors);
+        showNatErrors.setChecked(pref.getBoolean(keyShowNatErrors, SettingsManager.Default.showNatErrors));
 
-                return true;
+        Preference proxy = findPreference(getString(R.string.pref_key_proxy_settings));
+        proxy.setOnPreferenceClickListener((Preference preference) -> {
+            if (Utils.isLargeScreenDevice(getActivity())) {
+                setFragment(ProxySettingsFragment.newInstance(),
+                        getString(R.string.pref_proxy_settings_title));
+            } else {
+                startActivity(ProxySettingsFragment.class,
+                        getString(R.string.pref_proxy_settings_title));
             }
+
+            return true;
         });
     }
 
@@ -201,7 +200,6 @@ public class NetworkSettingsFragment extends PreferenceFragmentCompat
                 fileTypes,
                 FileManagerConfig.FILE_CHOOSER_MODE);
         i.putExtra(FileManagerDialog.TAG_CONFIG, config);
-
         startActivityForResult(i, FILE_CHOOSE_REQUEST);
     }
 
@@ -213,21 +211,33 @@ public class NetworkSettingsFragment extends PreferenceFragmentCompat
     @Override
     public boolean onPreferenceChange(Preference preference, Object newValue)
     {
-        SettingsManager pref = new SettingsManager(getActivity().getApplicationContext());
+        SharedPreferences pref = SettingsManager.getPreferences(getActivity());
 
-        if (preference instanceof SwitchPreferenceCompat) {
-            pref.put(preference.getKey(), (boolean) newValue);
-
-        } else if (preference.getKey().equals(getString(R.string.pref_key_port))) {
-
-            int value = TorrentEngine.DEFAULT_PORT;
-
-            if (!TextUtils.isEmpty((String) newValue)) {
+        if (preference.getKey().equals(getString(R.string.pref_key_port))) {
+            int value = TorrentEngine.Settings.DEFAULT_PORT;
+            if (!TextUtils.isEmpty((String) newValue))
                 value = Integer.parseInt((String) newValue);
-            }
-
-            pref.put(preference.getKey(), value);
+            pref.edit().putInt(preference.getKey(), value).apply();
             preference.setSummary(Integer.toString(value));
+        } else if (preference.getKey().equals(getString(R.string.pref_key_enc_mode))) {
+            int type = Integer.parseInt((String) newValue);
+            pref.edit().putInt(preference.getKey(), type).apply();
+            String typesName[] = getResources().getStringArray(R.array.pref_enc_mode_entries);
+            preference.setSummary(typesName[type]);
+
+            boolean enableAdvancedEncryptSettings = type != Integer.parseInt(getString(R.string.pref_enc_mode_disable_value));
+
+            String keyEncryptInConnections = getString(R.string.pref_key_enc_in_connections);
+            SwitchPreferenceCompat encryptInConnections =
+                    (SwitchPreferenceCompat) findPreference(keyEncryptInConnections);
+            encryptInConnections.setEnabled(enableAdvancedEncryptSettings);
+            encryptInConnections.setChecked(enableAdvancedEncryptSettings);
+
+            String keyEncryptOutConnections = getString(R.string.pref_key_enc_out_connections);
+            SwitchPreferenceCompat encryptOutConnections =
+                    (SwitchPreferenceCompat) findPreference(keyEncryptOutConnections);
+            encryptOutConnections.setEnabled(enableAdvancedEncryptSettings);
+            encryptOutConnections.setChecked(enableAdvancedEncryptSettings);
         }
 
         return true;
@@ -235,10 +245,9 @@ public class NetworkSettingsFragment extends PreferenceFragmentCompat
 
     private <F extends PreferenceFragmentCompat> void setFragment(F fragment, String title)
     {
-        if (Utils.isTablet(getActivity().getApplicationContext())) {
-            if (callback != null) {
+        if (Utils.isLargeScreenDevice(getActivity())) {
+            if (callback != null)
                 callback.onDetailTitleChanged(title);
-            }
 
             getActivity().getSupportFragmentManager().beginTransaction()
                     .replace(R.id.detail_fragment_container, fragment)
@@ -249,12 +258,12 @@ public class NetworkSettingsFragment extends PreferenceFragmentCompat
 
     private <F extends PreferenceFragmentCompat> void startActivity(Class<F> fragment, String title)
     {
-        Intent i = new Intent(getActivity(), BasePreferenceActivity.class);
+        Intent i = new Intent(getActivity(), PreferenceActivity.class);
         PreferenceActivityConfig config = new PreferenceActivityConfig(
                 fragment.getSimpleName(),
                 title);
 
-        i.putExtra(BasePreferenceActivity.TAG_CONFIG, config);
+        i.putExtra(PreferenceActivity.TAG_CONFIG, config);
         startActivity(i);
     }
 
@@ -265,8 +274,8 @@ public class NetworkSettingsFragment extends PreferenceFragmentCompat
             if (data.hasExtra(FileManagerDialog.TAG_RETURNED_PATH)) {
                 String path = data.getStringExtra(FileManagerDialog.TAG_RETURNED_PATH);
 
-                SettingsManager pref = new SettingsManager(getActivity().getApplicationContext());
-                pref.put(getString(R.string.pref_key_ip_filtering_file), path);
+                SharedPreferences pref = SettingsManager.getPreferences(getActivity());
+                pref.edit().putString(getString(R.string.pref_key_ip_filtering_file), path).apply();
             }
         }
     }

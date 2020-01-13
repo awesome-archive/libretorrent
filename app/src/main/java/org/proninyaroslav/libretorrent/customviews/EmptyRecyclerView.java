@@ -20,7 +20,7 @@
 package org.proninyaroslav.libretorrent.customviews;
 
 import android.content.Context;
-import android.support.v7.widget.RecyclerView;
+import androidx.recyclerview.widget.RecyclerView;
 import android.util.AttributeSet;
 import android.view.View;
 
@@ -82,15 +82,13 @@ public class EmptyRecyclerView extends RecyclerView
     public void setAdapter(Adapter adapter)
     {
         Adapter oldAdapter = getAdapter();
-        if (oldAdapter != null) {
+        if (oldAdapter != null)
             oldAdapter.unregisterAdapterDataObserver(observer);
-        }
 
         super.setAdapter(adapter);
 
-        if (adapter != null) {
+        if (adapter != null)
             adapter.registerAdapterDataObserver(observer);
-        }
 
         checkEmpty();
     }

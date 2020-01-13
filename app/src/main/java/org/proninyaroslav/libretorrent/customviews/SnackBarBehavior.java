@@ -20,8 +20,9 @@
 package org.proninyaroslav.libretorrent.customviews;
 
 import android.content.Context;
-import android.support.design.widget.CoordinatorLayout;
-import android.support.design.widget.Snackbar;
+import androidx.annotation.NonNull;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import com.google.android.material.snackbar.Snackbar;
 import android.util.AttributeSet;
 import android.view.View;
 
@@ -33,10 +34,7 @@ import com.github.clans.fab.FloatingActionMenu;
 
 public class SnackBarBehavior extends CoordinatorLayout.Behavior<FloatingActionMenu>
 {
-    public SnackBarBehavior()
-    {
-
-    }
+    public SnackBarBehavior() { }
 
     public SnackBarBehavior(Context context, AttributeSet attrs)
     {
@@ -44,13 +42,15 @@ public class SnackBarBehavior extends CoordinatorLayout.Behavior<FloatingActionM
     }
 
     @Override
-    public boolean layoutDependsOn(CoordinatorLayout parent, FloatingActionMenu child, View dependency)
+    public boolean layoutDependsOn(@NonNull CoordinatorLayout parent, @NonNull FloatingActionMenu child,
+                                   @NonNull View dependency)
     {
         return dependency instanceof Snackbar.SnackbarLayout;
     }
 
     @Override
-    public boolean onDependentViewChanged(CoordinatorLayout parent, FloatingActionMenu child, View dependency)
+    public boolean onDependentViewChanged(@NonNull CoordinatorLayout parent, @NonNull FloatingActionMenu child,
+                                          @NonNull View dependency)
     {
         float translationY = Math.min(0, dependency.getTranslationY() - dependency.getHeight());
         child.setTranslationY(translationY);

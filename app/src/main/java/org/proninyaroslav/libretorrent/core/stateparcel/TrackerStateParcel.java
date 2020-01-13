@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016, 2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -21,8 +21,12 @@ package org.proninyaroslav.libretorrent.core.stateparcel;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import androidx.annotation.NonNull;
 
-import com.frostwire.jlibtorrent.AnnounceEntry;
+import org.libtorrent4j.AnnounceEndpoint;
+import org.libtorrent4j.AnnounceEntry;
+
+import java.util.List;
 
 /*
  * The class provides a package model with information
@@ -43,9 +47,9 @@ public class TrackerStateParcel extends AbstractStateParcel<TrackerStateParcel>
     public class Status
     {
         public static final int UNKNOWN = -1;
-        public static final int NOT_CONTACTED = 0;
-        public static final int WORKING = 1;
-        public static final int UPDATING = 2;
+        public static final int WORKING = 0;
+        public static final int UPDATING = 1;
+        public static final int NOT_CONTACTED = 2;
         public static final int NOT_WORKING = 3;
     }
 
@@ -54,9 +58,16 @@ public class TrackerStateParcel extends AbstractStateParcel<TrackerStateParcel>
         super(entry.url());
 
         url = entry.url();
-        message = entry.message();
         tier = entry.tier();
-        status = makeStatus(entry);
+
+        if (entry.endpoints().size() == 0) {
+            status = Status.NOT_WORKING;
+            message = "";
+        } else {
+            AnnounceEndpoint bestEndpoint = getBestEndpoint(entry.endpoints());
+            message = bestEndpoint.message();
+            status = makeStatus(entry, bestEndpoint);
+        }
     }
 
     public TrackerStateParcel(String url, String message, int tier, int status)
@@ -69,21 +80,32 @@ public class TrackerStateParcel extends AbstractStateParcel<TrackerStateParcel>
         this.status = status;
     }
 
-    private int makeStatus(AnnounceEntry entry)
+    private int makeStatus(AnnounceEntry entry, AnnounceEndpoint endpoint)
     {
-        if (entry == null) {
+        if (entry == null)
             return Status.UNKNOWN;
-        }
 
-        if (entry.swig().getVerified() && entry.swig().is_working()) {
+        if (entry.isVerified() && endpoint.isWorking())
             return Status.WORKING;
-        } else if ((entry.swig().getFails() == 0) && entry.swig().getUpdating()) {
+        else if ((endpoint.fails() == 0) && endpoint.updating())
             return Status.UPDATING;
-        } else if (entry.swig().getFails() == 0) {
+        else if (endpoint.fails() == 0)
             return Status.NOT_CONTACTED;
-        } else {
+        else
             return Status.NOT_WORKING;
-        }
+    }
+
+    private AnnounceEndpoint getBestEndpoint(List<AnnounceEndpoint> endpoints)
+    {
+        if (endpoints.size() == 1)
+            return endpoints.get(0);
+
+        AnnounceEndpoint bestEndpoint = endpoints.get(0);
+        for (int i = 0; i < endpoints.size(); i++)
+            if (endpoints.get(i).fails() < bestEndpoint.fails())
+                bestEndpoint = endpoints.get(i);
+
+        return bestEndpoint;
     }
 
     public TrackerStateParcel(Parcel source)
@@ -131,7 +153,7 @@ public class TrackerStateParcel extends AbstractStateParcel<TrackerStateParcel>
 
 
     @Override
-    public int compareTo(TrackerStateParcel another)
+    public int compareTo(@NonNull TrackerStateParcel another)
     {
         return url.compareTo(another.url);
     }
@@ -152,13 +174,11 @@ public class TrackerStateParcel extends AbstractStateParcel<TrackerStateParcel>
     @Override
     public boolean equals(Object o)
     {
-        if (!(o instanceof TrackerStateParcel)) {
+        if (!(o instanceof TrackerStateParcel))
             return false;
-        }
 
-        if (o == this) {
+        if (o == this)
             return true;
-        }
 
         TrackerStateParcel state = (TrackerStateParcel) o;
 

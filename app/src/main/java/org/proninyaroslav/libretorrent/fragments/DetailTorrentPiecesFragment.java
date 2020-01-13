@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -21,9 +21,11 @@ package org.proninyaroslav.libretorrent.fragments;
 
 import android.content.Context;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.support.v4.app.Fragment;
-import android.support.v7.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.core.widget.NestedScrollView;
+import androidx.appcompat.app.AppCompatActivity;
 import android.text.format.Formatter;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -42,25 +44,27 @@ public class DetailTorrentPiecesFragment extends Fragment
     @SuppressWarnings("unused")
     private static final String TAG = DetailTorrentPiecesFragment.class.getSimpleName();
 
+    private static final String HEAVY_STATE_TAG = TAG + "_" + HeavyInstanceStorage.class.getSimpleName();
     private static final String TAG_PIECES = "pieces";
     private static final String TAG_ALL_PIECES_COUNT = "all_pieces_count";
     private static final String TAG_PIECE_SIZE = "piece_size";
     private static final String TAG_DOWNLOADED_PIECES = "downloaded_pieces";
+    private static final String TAG_SCROLL_POSITION = "scroll_position";
 
     private AppCompatActivity activity;
     private PiecesView pieceMap;
     private TextView piecesCounter;
+    private NestedScrollView pieceMapScrollView;
 
     private boolean[] pieces;
     private int allPiecesCount;
     private int pieceSize;
     private int downloadedPieces;
+    private int[] scrollPosition = new int[]{0, 0};
 
-    public static DetailTorrentPiecesFragment newInstance(int allPiecesCount, int pieceSize) {
+    public static DetailTorrentPiecesFragment newInstance()
+    {
         DetailTorrentPiecesFragment fragment = new DetailTorrentPiecesFragment();
-
-        fragment.allPiecesCount = allPiecesCount;
-        fragment.pieceSize = pieceSize;
 
         fragment.setArguments(new Bundle());
 
@@ -72,28 +76,20 @@ public class DetailTorrentPiecesFragment extends Fragment
     {
         super.onAttach(context);
 
-        if (context instanceof AppCompatActivity) {
-            this.activity = (AppCompatActivity) context;
-        }
+        if (context instanceof AppCompatActivity)
+            this.activity = (AppCompatActivity)context;
     }
 
     @Override
-    public void onCreate(@Nullable Bundle savedInstanceState)
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
     {
-        super.onCreate(savedInstanceState);
+        View v = inflater.inflate(R.layout.fragment_detail_torrent_pieces, container, false);
 
-        if (savedInstanceState != null) {
-            pieces = savedInstanceState.getBooleanArray(TAG_PIECES);
-            allPiecesCount = savedInstanceState.getInt(TAG_ALL_PIECES_COUNT);
-            pieceSize = savedInstanceState.getInt(TAG_PIECE_SIZE);
-            downloadedPieces = savedInstanceState.getInt(TAG_DOWNLOADED_PIECES);
-        }
-    }
+        pieceMap = v.findViewById(R.id.piece_map);
+        piecesCounter = v.findViewById(R.id.pieces_count);
+        pieceMapScrollView = v.findViewById(R.id.piece_map_scroll_view);
 
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
-    {
-        return inflater.inflate(R.layout.fragment_detail_torrent_pieces, container, false);
+        return v;
     }
 
     @Override
@@ -101,43 +97,75 @@ public class DetailTorrentPiecesFragment extends Fragment
     {
         super.onActivityCreated(savedInstanceState);
 
-        if (activity == null) {
+        if (activity == null)
             activity = (AppCompatActivity) getActivity();
+
+        HeavyInstanceStorage storage = HeavyInstanceStorage.getInstance(getFragmentManager());
+        if (storage != null) {
+            Bundle heavyInstance = storage.popData(HEAVY_STATE_TAG);
+            if (heavyInstance != null)
+                pieces = heavyInstance.getBooleanArray(TAG_PIECES);
+        }
+        if (savedInstanceState != null) {
+            allPiecesCount = savedInstanceState.getInt(TAG_ALL_PIECES_COUNT);
+            pieceSize = savedInstanceState.getInt(TAG_PIECE_SIZE);
+            downloadedPieces = savedInstanceState.getInt(TAG_DOWNLOADED_PIECES);
         }
 
-        pieceMap = (PiecesView) activity.findViewById(R.id.piece_map);
-        if (pieceMap != null) {
-            pieceMap.setPieces(pieces);
-        }
-
-        piecesCounter = (TextView) activity.findViewById(R.id.pieces_count);
-        if (pieceMap != null) {
-            updatePieceCounter();
-        }
+        pieceMap.setPieces(pieces);
+        updatePieceCounter();
     }
 
     @Override
-    public void onSaveInstanceState(Bundle outState)
+    public void onSaveInstanceState(@NonNull Bundle outState)
     {
-        outState.putBooleanArray(TAG_PIECES, pieces);
+        super.onSaveInstanceState(outState);
+
         outState.putInt(TAG_ALL_PIECES_COUNT, allPiecesCount);
         outState.putInt(TAG_PIECE_SIZE, pieceSize);
         outState.putInt(TAG_DOWNLOADED_PIECES, downloadedPieces);
+        if (pieceMapScrollView != null && scrollPosition != null) {
+            scrollPosition[0] = pieceMapScrollView.getScrollX();
+            scrollPosition[1] = pieceMapScrollView.getScrollY();
+            outState.putIntArray(TAG_SCROLL_POSITION, scrollPosition);
+        }
 
-        super.onSaveInstanceState(outState);
+        Bundle b = new Bundle();
+        b.putBooleanArray(TAG_PIECES, pieces);
+        HeavyInstanceStorage storage = HeavyInstanceStorage.getInstance(getFragmentManager());
+        if (storage != null)
+            storage.pushData(HEAVY_STATE_TAG, b);
+    }
+
+    @Override
+    public void onViewStateRestored(@Nullable Bundle savedInstanceState)
+    {
+        super.onViewStateRestored(savedInstanceState);
+
+        if (savedInstanceState != null) {
+            scrollPosition = savedInstanceState.getIntArray(TAG_SCROLL_POSITION);
+            if (scrollPosition != null && scrollPosition.length == 2)
+                pieceMapScrollView.scrollTo(scrollPosition[0], scrollPosition[1]);
+        }
     }
 
     public void setPieces(boolean[] pieces)
     {
-        if (pieces == null) {
+        if (pieces == null)
             return;
-        }
 
         this.pieces = pieces;
+        pieceMap.setPieces(pieces);
+    }
 
-        if (pieceMap != null) {
-            pieceMap.setPieces(pieces);
-        }
+    public void setPiecesCountAndSize(int allPiecesCount, int pieceSize)
+    {
+        if (this.allPiecesCount != 0 && this.pieceSize != 0)
+            return;
+        this.allPiecesCount = allPiecesCount;
+        this.pieceSize = pieceSize;
+
+        updatePieceCounter();
     }
 
     public void setDownloadedPiecesCount(int downloadedPieces)
@@ -150,13 +178,7 @@ public class DetailTorrentPiecesFragment extends Fragment
     private void updatePieceCounter()
     {
         String piecesTemplate = activity.getString(R.string.torrent_pieces_template);
-        String pieceLehgtn = Formatter.formatFileSize(activity, pieceSize);
-        if (piecesCounter != null) {
-            piecesCounter.setText(
-                    String.format(piecesTemplate,
-                            downloadedPieces,
-                            allPiecesCount,
-                            pieceLehgtn));
-        }
+        String pieceLength = Formatter.formatFileSize(activity, pieceSize);
+        piecesCounter.setText(String.format(piecesTemplate, downloadedPieces, allPiecesCount, pieceLength));
     }
 }

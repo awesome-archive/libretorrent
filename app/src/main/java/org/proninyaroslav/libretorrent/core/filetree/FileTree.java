@@ -19,7 +19,10 @@
 
 package org.proninyaroslav.libretorrent.core.filetree;
 
+import androidx.annotation.NonNull;
+
 import java.io.File;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -31,7 +34,7 @@ import java.util.Set;
  * The class represents a file tree model hierarchy. Based on trie.
  */
 
-public class FileTree<F extends FileTree> implements FileNode<FileTree>
+public class FileTree<F extends FileTree> implements FileNode<FileTree>, Serializable
 {
     public static final String ROOT = File.separator;
     /* The name for pointer to the parent node */
@@ -44,11 +47,13 @@ public class FileTree<F extends FileTree> implements FileNode<FileTree>
     protected F parent;
     protected Map<String, F> children = new LinkedHashMap<>();
 
-    public FileTree(String name, long size, int type) {
+    public FileTree(String name, long size, int type)
+    {
         this(-1, name, size, type, null);
     }
 
-    public FileTree(String name, long size, int type, F parent) {
+    public FileTree(String name, long size, int type, F parent)
+    {
         this(-1, name, size, type, parent);
     }
 
@@ -95,9 +100,8 @@ public class FileTree<F extends FileTree> implements FileNode<FileTree>
     {
         List<Integer> indexes = new ArrayList<>();
 
-        for (F child : children.values()) {
+        for (F child : children.values())
             indexes.add(child.getIndex());
-        }
 
         return indexes;
     }
@@ -158,11 +162,9 @@ public class FileTree<F extends FileTree> implements FileNode<FileTree>
 
     public long size()
     {
-        if (size == 0 && children.size() != 0) {
-            for (F child : children.values()) {
+        if (size == 0 && children.size() != 0)
+            for (F child : children.values())
                 size += child.size();
-            }
-        }
 
         return size;
     }
@@ -181,7 +183,7 @@ public class FileTree<F extends FileTree> implements FileNode<FileTree>
     }
 
     @Override
-    public int compareTo(FileTree another)
+    public int compareTo(@NonNull FileTree another)
     {
         return name.compareTo(another.getName());
     }

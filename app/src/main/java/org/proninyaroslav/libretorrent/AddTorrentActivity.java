@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -19,27 +19,19 @@
 
 package org.proninyaroslav.libretorrent;
 
-import android.app.FragmentManager;
-import android.app.FragmentTransaction;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
-import android.view.View;
-import android.widget.EditText;
+import androidx.fragment.app.FragmentTransaction;
+import androidx.appcompat.app.AppCompatActivity;
 
-import org.proninyaroslav.libretorrent.core.exceptions.DecodeException;
-import org.proninyaroslav.libretorrent.core.exceptions.FetchLinkException;
+import org.greenrobot.eventbus.EventBus;
+import org.proninyaroslav.libretorrent.core.AddTorrentParams;
 import org.proninyaroslav.libretorrent.core.utils.Utils;
-import org.proninyaroslav.libretorrent.dialogs.BaseAlertDialog;
-import org.proninyaroslav.libretorrent.dialogs.ErrorReportAlertDialog;
 import org.proninyaroslav.libretorrent.dialogs.SpinnerProgressDialog;
 import org.proninyaroslav.libretorrent.fragments.AddTorrentFragment;
 import org.proninyaroslav.libretorrent.fragments.FragmentCallback;
-
-import java.io.IOException;
+import org.proninyaroslav.libretorrent.services.TorrentTaskService;
 
 /*
  * The dialog for adding torrent. The parent window.
@@ -48,57 +40,53 @@ import java.io.IOException;
 public class AddTorrentActivity extends AppCompatActivity
         implements
         FragmentCallback,
-        AddTorrentFragment.Callback,
-        BaseAlertDialog.OnClickListener
+        AddTorrentFragment.Callback
 {
 
     @SuppressWarnings("unused")
     private static final String TAG = AddTorrentActivity.class.getSimpleName();
 
-    private static final String TAG_FRAGMENT = "fragment";
     private static final String TAG_SPINNER_PROGRESS = "spinner_progress";
-    private static final String TAG_IO_EXCEPT_DIALOG = "io_except_dialog";
-    private static final String TAG_DECODE_EXCEPT_DIALOG = "decode_except_dialog";
-    private static final String TAG_FETCH_EXCEPT_DIALOG = "fetch_except_dialog";
-    private static final String TAG_ILLEGAL_ARGUMENT = "illegal_argument";
 
     public static final String TAG_URI = "uri";
-    public static final String TAG_RESULT_TORRENT = "result_bundle";
+    public static final String TAG_ADD_TORRENT_PARAMS = "add_torrent_params";
+    public static final String ACTION_ADD_TORRENT = "org.proninyaroslav.libretorrent.AddTorrentActivity.ACTION_ADD_TORRENT";
 
     private AddTorrentFragment addTorrentFragment;
     private SpinnerProgressDialog progress;
-    private Exception sentError;
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
     {
+        setTheme(Utils.getAppTheme(getApplicationContext()));
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_add_torrent);
 
-        FragmentManager fm = getFragmentManager();
-        addTorrentFragment = (AddTorrentFragment) fm.findFragmentByTag(TAG_FRAGMENT);
+        addTorrentFragment = (AddTorrentFragment)getSupportFragmentManager()
+                .findFragmentById(R.id.add_torrent_fragmentContainer);
 
         Intent intent = getIntent();
         Uri uri;
-        if (intent.getData() != null) {
+        if (intent.getData() != null)
             /* Implicit intent with path to torrent file, http or magnet link */
             uri = intent.getData();
-        } else {
+        else
             uri = intent.getParcelableExtra(TAG_URI);
-        }
 
-        if (uri != null) {
-            addTorrentFragment =
-                    (AddTorrentFragment) fm.findFragmentById(R.id.add_torrent_fragmentContainer);
+        resetResult();
+        startService(new Intent(this, TorrentTaskService.class));
+
+        if (uri != null)
             addTorrentFragment.setUri(uri);
-        }
     }
 
     @Override
     protected void onRestoreInstanceState(Bundle savedInstanceState)
     {
-        progress = (SpinnerProgressDialog) getFragmentManager().findFragmentByTag(TAG_SPINNER_PROGRESS);
+        super.onRestoreInstanceState(savedInstanceState);
+
+        progress = (SpinnerProgressDialog)getSupportFragmentManager().findFragmentByTag(TAG_SPINNER_PROGRESS);
     }
 
     @Override
@@ -108,108 +96,9 @@ public class AddTorrentActivity extends AppCompatActivity
     }
 
     @Override
-    public void onPostExecute(Exception e)
+    public void onPostExecute()
     {
         dismissProgress();
-
-        if (e != null) {
-            if (e instanceof DecodeException) {
-                if (getFragmentManager().findFragmentByTag(TAG_DECODE_EXCEPT_DIALOG) == null) {
-                    BaseAlertDialog errDialog = BaseAlertDialog.newInstance(
-                            getString(R.string.error),
-                            getString(R.string.error_decode_torrent),
-                            0,
-                            getString(R.string.ok),
-                            null,
-                            null,
-                            R.style.BaseTheme_Dialog,
-                            this);
-
-                    FragmentTransaction ft = getFragmentManager().beginTransaction();
-                    ft.add(errDialog, TAG_DECODE_EXCEPT_DIALOG);
-                    ft.commitAllowingStateLoss();
-                }
-
-            } else if (e instanceof FetchLinkException) {
-                if (getFragmentManager().findFragmentByTag(TAG_FETCH_EXCEPT_DIALOG) == null) {
-                    BaseAlertDialog errDialog = BaseAlertDialog.newInstance(
-                            getString(R.string.error),
-                            getString(R.string.error_fetch_link),
-                            0,
-                            getString(R.string.ok),
-                            null,
-                            null,
-                            R.style.BaseTheme_Dialog,
-                            this);
-
-                    FragmentTransaction ft = getFragmentManager().beginTransaction();
-                    ft.add(errDialog, TAG_FETCH_EXCEPT_DIALOG);
-                    ft.commitAllowingStateLoss();
-                }
-
-            } else if (e instanceof IllegalArgumentException) {
-                if (getFragmentManager().findFragmentByTag(TAG_ILLEGAL_ARGUMENT) == null) {
-                    BaseAlertDialog errDialog = BaseAlertDialog.newInstance(
-                            getString(R.string.error),
-                            getString(R.string.error_invalid_link_or_path),
-                            0,
-                            getString(R.string.ok),
-                            null,
-                            null,
-                            R.style.BaseTheme_Dialog,
-                            this);
-
-                    FragmentTransaction ft = getFragmentManager().beginTransaction();
-                    ft.add(errDialog, TAG_ILLEGAL_ARGUMENT);
-                    ft.commitAllowingStateLoss();
-                }
-
-            } else if (e instanceof IOException) {
-                sentError = e;
-                if (getFragmentManager().findFragmentByTag(TAG_IO_EXCEPT_DIALOG) == null) {
-                    ErrorReportAlertDialog errDialog = ErrorReportAlertDialog.newInstance(
-                            getApplicationContext(),
-                            getString(R.string.error),
-                            getString(R.string.error_io_torrent),
-                            Log.getStackTraceString(e),
-                            R.style.BaseTheme_Dialog,
-                            this);
-
-                    FragmentTransaction ft = getFragmentManager().beginTransaction();
-                    ft.add(errDialog, TAG_IO_EXCEPT_DIALOG);
-                    ft.commitAllowingStateLoss();
-                }
-            }
-        }
-    }
-
-    @Override
-    public void onPositiveClicked(@Nullable View v)
-    {
-        if (sentError != null) {
-            String comment = null;
-
-            if (v != null) {
-                EditText editText = (EditText) v.findViewById(R.id.comment);
-                comment = editText.getText().toString();
-            }
-
-            Utils.reportError(sentError, comment);
-        }
-
-        finish();
-    }
-
-    @Override
-    public void onNegativeClicked(@Nullable View v)
-    {
-        finish();
-    }
-
-    @Override
-    public void onNeutralClicked(@Nullable View v)
-    {
-        /* Nothing */
     }
 
     private void showProgress(String progressDialogText)
@@ -219,10 +108,11 @@ public class AddTorrentActivity extends AppCompatActivity
                 progressDialogText,
                 0,
                 true,
-                true,
-                R.style.BaseTheme_Dialog);
+                true);
 
-        progress.show(getFragmentManager(), TAG_SPINNER_PROGRESS);
+        FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
+        ft.add(progress, TAG_SPINNER_PROGRESS);
+        ft.commitAllowingStateLoss();
     }
 
     private void dismissProgress()
@@ -230,6 +120,7 @@ public class AddTorrentActivity extends AppCompatActivity
         if (progress != null) {
             try {
                 progress.dismiss();
+
             } catch (Exception e) {
                 /* Ignore */
             }
@@ -238,27 +129,50 @@ public class AddTorrentActivity extends AppCompatActivity
         progress = null;
     }
 
+    public static void setResult(AddTorrentParams params)
+    {
+        if (params == null)
+            return;
+
+        EventBus.getDefault().postSticky(params);
+    }
+
+    public static AddTorrentParams getResult()
+    {
+        return EventBus.getDefault().removeStickyEvent(AddTorrentParams.class);
+    }
+
+    public static void resetResult()
+    {
+        getResult();
+    }
+
     @Override
     public void fragmentFinished(Intent intent, ResultCode code)
     {
+        /*
+         * Transfer of result will be done only across EventBus sticky event, not intent.
+         * This is necessary to add large torrents.
+         */
+        resetResult();
         if (code == ResultCode.OK) {
             /* If add torrent dialog has been called by an implicit intent */
-            if (getIntent().getData() != null && intent.hasExtra(TAG_RESULT_TORRENT)) {
+            setResult(intent.getParcelableExtra(TAG_ADD_TORRENT_PARAMS));
+            if (getIntent().getData() != null) {
                 Intent i = new Intent(getApplicationContext(), MainActivity.class);
-                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                i.putExtra(TAG_RESULT_TORRENT, intent.getParcelableExtra(TAG_RESULT_TORRENT));
+                i.setAction(ACTION_ADD_TORRENT);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 startActivity(i);
             } else {
-                setResult(RESULT_OK, intent);
+                setResult(RESULT_OK, new Intent(ACTION_ADD_TORRENT));
             }
 
         } else if (code == ResultCode.BACK) {
             /* For correctly finishing activity, if it was called by implicit intent */
-            if (getIntent().getData() != null) {
+            if (getIntent().getData() != null)
                 finish();
-            } else {
+            else
                 setResult(RESULT_CANCELED, intent);
-            }
 
         } else if (code == ResultCode.CANCEL) {
             setResult(RESULT_CANCELED, intent);

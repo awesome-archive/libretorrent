@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -25,21 +25,20 @@ package org.proninyaroslav.libretorrent.core;
 
 public class ProxySettingsPack
 {
+    public static final int DEFAULT_PROXY_PORT = 8080;
     private ProxyType type = ProxyType.NONE;
     private String address = "";
     private String login = "";
     private String  password = "";
-    private int port = 0;
+    private int port = DEFAULT_PROXY_PORT;
     private boolean proxyPeersToo = true;
-    private boolean forceProxy = true;
 
     public enum ProxyType
     {
         NONE(0),
-        TOR(1),
-        SOCKS4(2),
-        SOCKS5(3),
-        HTTP(4);
+        SOCKS4(1),
+        SOCKS5(2),
+        HTTP(3);
 
         private final int value;
 
@@ -66,18 +65,14 @@ public class ProxySettingsPack
         }
     }
 
-    public ProxySettingsPack()
-    {
-
-    }
+    public ProxySettingsPack() { }
 
     public ProxySettingsPack(ProxyType type,
                              String address,
                              String login,
                              String password,
                              int port,
-                             boolean proxyPeersToo,
-                             boolean forceProxy)
+                             boolean proxyPeersToo)
     {
         this.type = type;
         this.address = address;
@@ -85,7 +80,6 @@ public class ProxySettingsPack
         this.password = password;
         this.port = port;
         this.proxyPeersToo = proxyPeersToo;
-        this.forceProxy = forceProxy;
     }
 
     public ProxyType getType()
@@ -146,15 +140,5 @@ public class ProxySettingsPack
     public void setProxyPeersToo(boolean proxyPeersToo)
     {
         this.proxyPeersToo = proxyPeersToo;
-    }
-
-    public boolean isForceProxy()
-    {
-        return forceProxy;
-    }
-
-    public void setForceProxy(boolean forceProxy)
-    {
-        this.forceProxy = forceProxy;
     }
 }

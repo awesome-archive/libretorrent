@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -21,7 +21,7 @@ package org.proninyaroslav.libretorrent.core;
 
 public interface TorrentEngineCallback
 {
-    void onTorrentAdded(String id, TorrentDownload task);
+    void onTorrentAdded(String id);
 
     void onTorrentStateChanged(String id);
 
@@ -35,9 +35,19 @@ public interface TorrentEngineCallback
 
     void onEngineStarted();
 
-    void onEngineInterrupted();
-
     void onTorrentMoved(String id, boolean success);
 
     void onIpFilterParsed(boolean success);
+
+    void onMagnetLoaded(String hash, byte[] bencode);
+
+    void onTorrentMetadataLoaded(String id, Exception err);
+
+    void onRestoreSessionError(String id);
+
+    void onTorrentError(String id, String errorMsg);
+
+    void onSessionError(String errorMsg);
+
+    void onNatError(String errorMsg);
 }

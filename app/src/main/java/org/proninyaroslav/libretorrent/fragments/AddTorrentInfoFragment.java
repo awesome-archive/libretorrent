@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -23,10 +23,11 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.support.design.widget.TextInputLayout;
-import android.support.v4.app.Fragment;
-import android.support.v7.app.AppCompatActivity;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import com.google.android.material.textfield.TextInputLayout;
+import androidx.fragment.app.Fragment;
+import androidx.appcompat.app.AppCompatActivity;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -49,6 +50,7 @@ import org.proninyaroslav.libretorrent.dialogs.filemanager.FileManagerDialog;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 
 /*
  * The fragment for displaying torrent metainformation,
@@ -60,28 +62,34 @@ public class AddTorrentInfoFragment extends Fragment
     @SuppressWarnings("unused")
     private static final String TAG = AddTorrentInfoFragment.class.getSimpleName();
 
+    private static final String HEAVY_STATE_TAG = TAG + "_" + HeavyInstanceStorage.class.getSimpleName();
     private static final String TAG_INFO = "info";
     private static final String TAG_DOWNLOAD_DIR = "download_dir";
+    private static final String TAG_CUSTOM_NAME = "custom_name";
 
     private static final int DIR_CHOOSER_REQUEST = 1;
 
     private AppCompatActivity activity;
     private String downloadDir = "";
+    private TorrentMetaInfo info;
+    private String customName;
 
     private EditText torrentNameField;
     private TextInputLayout layoutTorrentName;
     private TextView sha1HashView, commentView, createdByView,
             torrentSizeView, creationDateView, fileCountView,
             pathToUploadView, freeSpace;
+    LinearLayout commentViewLayout, createdByViewLayout,
+            sizeAndCountViewLayout, creationDateViewLayout;
     private ImageButton folderChooserButton;
-    private CheckBox sequentialDownload;
+    private CheckBox sequentialDownload, startTorrent;
 
-    public static AddTorrentInfoFragment newInstance(TorrentMetaInfo info) {
+    public static AddTorrentInfoFragment newInstance()
+    {
         AddTorrentInfoFragment fragment = new AddTorrentInfoFragment();
 
-        Bundle args = new Bundle();
-        args.putParcelable(TAG_INFO, info);
-        fragment.setArguments(args);
+        Bundle b = new Bundle();
+        fragment.setArguments(b);
 
         return fragment;
     }
@@ -91,8 +99,15 @@ public class AddTorrentInfoFragment extends Fragment
     {
         super.onCreate(savedInstanceState);
 
+        HeavyInstanceStorage storage = HeavyInstanceStorage.getInstance(getFragmentManager());
+        if (storage != null) {
+            Bundle heavyInstance = storage.popData(HEAVY_STATE_TAG);
+            if (heavyInstance != null)
+                info = heavyInstance.getParcelable(TAG_INFO);
+        }
         if (savedInstanceState != null) {
             downloadDir = savedInstanceState.getString(TAG_DOWNLOAD_DIR);
+            customName = savedInstanceState.getString(TAG_CUSTOM_NAME);
         } else {
             downloadDir = TorrentUtils.getTorrentDownloadPath(activity.getApplicationContext());
         }
@@ -103,80 +118,99 @@ public class AddTorrentInfoFragment extends Fragment
     {
         super.onAttach(context);
 
-        if (context instanceof AppCompatActivity) {
-            activity = (AppCompatActivity) context;
-        }
+        if (context instanceof AppCompatActivity)
+            activity = (AppCompatActivity)context;
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState)
     {
         View v = inflater.inflate(R.layout.fragment_add_torrent_info, container, false);
 
-        torrentNameField = (EditText) v.findViewById(R.id.torrent_name);
-        layoutTorrentName = (TextInputLayout) v.findViewById(R.id.layout_torrent_name);
-        sha1HashView = (TextView) v.findViewById(R.id.torrent_hash_sum);
-        commentView = (TextView) v.findViewById(R.id.torrent_comment);
-        createdByView = (TextView) v.findViewById(R.id.torrent_created_in_program);
-        torrentSizeView = (TextView) v.findViewById(R.id.torrent_size);
-        fileCountView = (TextView) v.findViewById(R.id.torrent_file_count);
-        creationDateView = (TextView) v.findViewById(R.id.torrent_create_date);
-        pathToUploadView = (TextView) v.findViewById(R.id.upload_torrent_into);
-        folderChooserButton = (ImageButton) v.findViewById(R.id.folder_chooser_button);
-        sequentialDownload = (CheckBox) v.findViewById(R.id.sequential_download);
-        freeSpace = (TextView) v.findViewById(R.id.free_space);
+        torrentNameField = v.findViewById(R.id.torrent_name);
+        layoutTorrentName = v.findViewById(R.id.layout_torrent_name);
+        sha1HashView = v.findViewById(R.id.torrent_hash_sum);
+        commentView = v.findViewById(R.id.torrent_comment);
+        createdByView = v.findViewById(R.id.torrent_created_in_program);
+        torrentSizeView = v.findViewById(R.id.torrent_size);
+        fileCountView = v.findViewById(R.id.torrent_file_count);
+        creationDateView = v.findViewById(R.id.torrent_create_date);
+        pathToUploadView = v.findViewById(R.id.upload_torrent_into);
+        folderChooserButton = v.findViewById(R.id.folder_chooser_button);
+        sequentialDownload = v.findViewById(R.id.sequential_download);
+        startTorrent = v.findViewById(R.id.start_torrent);
+        startTorrent.setChecked(true);
+        freeSpace = v.findViewById(R.id.free_space);
+        commentViewLayout = v.findViewById(R.id.layout_torrent_comment);
+        commentViewLayout.setVisibility(View.GONE);
+        createdByViewLayout = v.findViewById(R.id.layout_torrent_created_in_program);
+        createdByViewLayout.setVisibility(View.GONE);
+        sizeAndCountViewLayout = v.findViewById(R.id.layout_torrent_size_and_count);
+        sizeAndCountViewLayout.setVisibility(View.GONE);
+        creationDateViewLayout = v.findViewById(R.id.layout_torrent_create_date);
+        creationDateViewLayout.setVisibility(View.GONE);
 
-        TorrentMetaInfo info = getArguments().getParcelable(TAG_INFO);
-
-        if (info != null) {
-            torrentNameField.setText(info.getTorrentName());
-            sha1HashView.setText(info.getSha1Hash());
-            if (TextUtils.isEmpty(info.getComment())) {
-                commentView.setVisibility(View.GONE);
-
-                LinearLayout commentViewLayout =
-                        (LinearLayout) v.findViewById(R.id.layout_torrent_comment);
-                commentViewLayout.setVisibility(View.GONE);
-
-                TextView commentViewHeader = (TextView) v.findViewById(R.id.header_torrent_comment);
-                commentViewHeader.setVisibility(View.GONE);
-            } else {
-                commentView.setText(info.getComment());
-            }
-            if (TextUtils.isEmpty(info.getCreatedBy())) {
-                createdByView.setVisibility(View.GONE);
-
-                LinearLayout createdByViewLayout =
-                        (LinearLayout) v.findViewById(R.id.layout_torrent_created_in_program);
-                createdByViewLayout.setVisibility(View.GONE);
-
-                TextView createdByViewHeader =
-                        (TextView) v.findViewById(R.id.header_torrent_created_in_program);
-                createdByViewHeader.setVisibility(View.GONE);
-            } else {
-                createdByView.setText(info.getCreatedBy());
-            }
-            torrentSizeView.setText(Formatter.formatFileSize(activity, info.getTorrentSize()));
-            creationDateView.setText(
-                    SimpleDateFormat.getDateTimeInstance().format(new Date(info.getCreationDate())));
-            fileCountView.setText(Integer.toString(info.getFileCount()));
-            pathToUploadView.setText(downloadDir);
-            freeSpace.setText(
-                    String.format(
-                            getString(R.string.free_space),
-                            Formatter.formatFileSize(activity.getApplicationContext(),
-                                    FileIOUtils.getFreeSpace(downloadDir))));
-        }
+        initFields();
 
         return v;
     }
 
+    private void initFields()
+    {
+        if (info == null)
+            return;
+
+        torrentNameField.setText(TextUtils.isEmpty(customName) ? info.torrentName : customName);
+        sha1HashView.setText(info.sha1Hash);
+        pathToUploadView.setText(downloadDir);
+
+        if (TextUtils.isEmpty(info.comment)) {
+            commentViewLayout.setVisibility(View.GONE);
+        } else {
+            commentView.setText(info.comment);
+            commentViewLayout.setVisibility(View.VISIBLE);
+        }
+
+        if (TextUtils.isEmpty(info.createdBy)) {
+            createdByViewLayout.setVisibility(View.GONE);
+        } else {
+            createdByView.setText(info.createdBy);
+            createdByViewLayout.setVisibility(View.VISIBLE);
+        }
+
+        if (info.torrentSize == 0 || info.fileCount == 0) {
+            sizeAndCountViewLayout.setVisibility(View.GONE);
+        } else {
+            torrentSizeView.setText(Formatter.formatFileSize(activity, info.torrentSize));
+            fileCountView.setText(String.format(Locale.getDefault(), "%d", info.fileCount));
+            freeSpace.setText(String.format(getString(R.string.free_space),
+                              Formatter.formatFileSize(activity.getApplicationContext(),
+                                                       FileIOUtils.getFreeSpace(downloadDir))));
+            sizeAndCountViewLayout.setVisibility(View.VISIBLE);
+        }
+
+        if (info.creationDate == 0) {
+            creationDateViewLayout.setVisibility(View.GONE);
+        } else {
+            creationDateView.setText(SimpleDateFormat.getDateTimeInstance()
+                    .format(new Date(info.creationDate)));
+            creationDateViewLayout.setVisibility(View.VISIBLE);
+        }
+    }
+
     @Override
-    public void onSaveInstanceState(Bundle outState)
+    public void onSaveInstanceState(@NonNull Bundle outState)
     {
         super.onSaveInstanceState(outState);
 
         outState.putString(TAG_DOWNLOAD_DIR, downloadDir);
+        outState.putString(TAG_CUSTOM_NAME, customName);
+
+        Bundle b = new Bundle();
+        b.putParcelable(TAG_INFO, info);
+        HeavyInstanceStorage storage = HeavyInstanceStorage.getInstance(getFragmentManager());
+        if (storage != null)
+            storage.pushData(HEAVY_STATE_TAG, b);
     }
 
     @Override
@@ -184,26 +218,17 @@ public class AddTorrentInfoFragment extends Fragment
     {
         super.onActivityCreated(savedInstanceState);
 
-        if (activity == null) {
-            activity = (AppCompatActivity) getActivity();
-        }
+        if (activity == null)
+            activity = (AppCompatActivity)getActivity();
 
-        folderChooserButton.setOnClickListener(new View.OnClickListener()
-        {
-
-            @Override
-            public void onClick(View v) {
-                Intent i = new Intent(activity, FileManagerDialog.class);
-
-                FileManagerConfig config = new FileManagerConfig(downloadDir,
-                        null,
-                        null,
-                        FileManagerConfig.DIR_CHOOSER_MODE);
-
-                i.putExtra(FileManagerDialog.TAG_CONFIG, config);
-
-                startActivityForResult(i, DIR_CHOOSER_REQUEST);
-            }
+        folderChooserButton.setOnClickListener((View v) -> {
+            Intent i = new Intent(activity, FileManagerDialog.class);
+            FileManagerConfig config = new FileManagerConfig(downloadDir,
+                    null,
+                    null,
+                    FileManagerConfig.DIR_CHOOSER_MODE);
+            i.putExtra(FileManagerDialog.TAG_CONFIG, config);
+            startActivityForResult(i, DIR_CHOOSER_REQUEST);
         });
 
         torrentNameField.addTextChangedListener(new TextWatcher()
@@ -224,6 +249,10 @@ public class AddTorrentInfoFragment extends Fragment
             public void afterTextChanged(Editable s)
             {
                 checkEditTextField(s);
+                String name = s.toString();
+                if (info != null && name.equals(info.torrentName))
+                    return;
+                customName = name;
             }
         });
     }
@@ -239,10 +268,9 @@ public class AddTorrentInfoFragment extends Fragment
                     downloadDir = data.getStringExtra(FileManagerDialog.TAG_RETURNED_PATH);
                     pathToUploadView.setText(downloadDir);
                     freeSpace.setText(
-                            String.format(
-                                    getString(R.string.free_space),
-                                    Formatter.formatFileSize(activity.getApplicationContext(),
-                                            FileIOUtils.getFreeSpace(downloadDir))));
+                            String.format(getString(R.string.free_space),
+                                          Formatter.formatFileSize(activity.getApplicationContext(),
+                                                                   FileIOUtils.getFreeSpace(downloadDir))));
                 }
             }
         }
@@ -260,6 +288,16 @@ public class AddTorrentInfoFragment extends Fragment
         }
     }
 
+    public void setInfo(TorrentMetaInfo info)
+    {
+        if (info == null)
+            return;
+
+        this.info = info;
+
+        initFields();
+    }
+
     public String getDownloadDir()
     {
         return downloadDir;
@@ -273,5 +311,10 @@ public class AddTorrentInfoFragment extends Fragment
     public boolean isSequentialDownload()
     {
         return sequentialDownload.isChecked();
+    }
+
+    public boolean startTorrent()
+    {
+        return startTorrent.isChecked();
     }
 }

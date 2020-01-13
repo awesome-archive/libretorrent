@@ -24,6 +24,7 @@ import org.proninyaroslav.libretorrent.core.filetree.BencodeFileTree;
 import org.proninyaroslav.libretorrent.core.filetree.FileNode;
 import org.proninyaroslav.libretorrent.core.filetree.FileTree;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -42,10 +43,11 @@ public class BencodeFileTreeUtils
         BencodeFileTree parentTree = root;
         /* It allows reduce the number of iterations on the paths with equal beginnings */
         String prevPath = "";
+        List<BencodeFileItem> filesCopy = new ArrayList<>(files);
         /* Sort reduces the returns number to root */
-        Collections.sort(files);
+        Collections.sort(filesCopy);
 
-        for (BencodeFileItem file : files) {
+        for (BencodeFileItem file : filesCopy) {
             String path;
             /*
              * Compare previous path with new path.
@@ -63,7 +65,7 @@ public class BencodeFileTreeUtils
             if (!prevPath.isEmpty() &&
                     file.getPath().regionMatches(true, 0, prevPath, 0, prevPath.length())) {
                 /*
-                 * Beginning paths are equal, remove previous path from the new path.
+                 * If beginning paths are equal, remove previous path from the new path.
                  * Example:
                  * prev = dir1/dir2/
                  * cur  = dir1/dir2/file1
@@ -71,7 +73,7 @@ public class BencodeFileTreeUtils
                  */
                 path = file.getPath().substring(prevPath.length());
             } else {
-                /* Beginning paths are not equal, return to root */
+                /* If beginning paths are not equal, return to root */
                 path = file.getPath();
                 parentTree = root;
             }
@@ -90,17 +92,15 @@ public class BencodeFileTreeUtils
             for (int i = 0; i < nodes.length; i++) {
                 if (!parentTree.contains(nodes[i])) {
                     /* The last leaf item is a file */
-                    parentTree.addChild(
-                            makeObject(file.getIndex(), nodes[i],
-                                    file.getSize(), parentTree,
-                                    i == (nodes.length - 1)));
+                    parentTree.addChild(makeObject(file.getIndex(), nodes[i],
+                                                   file.getSize(), parentTree,
+                                                   i == (nodes.length - 1)));
                 }
 
                 BencodeFileTree nextParent = parentTree.getChild(nodes[i]);
                 /* Skipping leaf nodes */
-                if (!nextParent.isFile()) {
+                if (!nextParent.isFile())
                     parentTree = nextParent;
-                }
             }
         }
 

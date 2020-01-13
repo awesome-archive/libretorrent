@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016, 2017 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -34,24 +34,37 @@ public class NotificationReceiver extends BroadcastReceiver
 {
     public static final String NOTIFY_ACTION_SHUTDOWN_APP = "org.proninyaroslav.libretorrent.receivers.NotificationReceiver.NOTIFY_ACTION_SHUTDOWN_APP";
     public static final String NOTIFY_ACTION_ADD_TORRENT = "org.proninyaroslav.libretorrent.receivers.NotificationReceiver.NOTIFY_ACTION_ADD_TORRENT";
+    public static final String NOTIFY_ACTION_PAUSE_RESUME = "org.proninyaroslav.libretorrent.receivers.NotificationReceiver.NOTIFY_ACTION_PAUSE_RESUME";
 
     @Override
     public void onReceive(Context context, Intent intent)
     {
-        switch (intent.getAction()) {
+        String action = intent.getAction();
+        if (action == null)
+            return;
+        Intent mainIntent, serviceIntent;
+        switch (action) {
             /* Send action to the already running service */
             case NOTIFY_ACTION_SHUTDOWN_APP:
-                Intent serviceIntent = new Intent(context.getApplicationContext(), TorrentTaskService.class);
-                serviceIntent.setAction(NOTIFY_ACTION_SHUTDOWN_APP);
+                mainIntent = new Intent(context.getApplicationContext(), MainActivity.class);
+                mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                mainIntent.setAction(NOTIFY_ACTION_SHUTDOWN_APP);
+                context.startActivity(mainIntent);
 
+                serviceIntent = new Intent(context.getApplicationContext(), TorrentTaskService.class);
+                serviceIntent.setAction(NOTIFY_ACTION_SHUTDOWN_APP);
                 context.startService(serviceIntent);
                 break;
             case NOTIFY_ACTION_ADD_TORRENT:
-                Intent mainIntent = new Intent(context.getApplicationContext(), MainActivity.class);
+                mainIntent = new Intent(context.getApplicationContext(), MainActivity.class);
                 mainIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
                 mainIntent.setAction(NOTIFY_ACTION_ADD_TORRENT);
-
                 context.startActivity(mainIntent);
+                break;
+            case NOTIFY_ACTION_PAUSE_RESUME:
+                serviceIntent = new Intent(context.getApplicationContext(), TorrentTaskService.class);
+                serviceIntent.setAction(NOTIFY_ACTION_PAUSE_RESUME);
+                context.startService(serviceIntent);
                 break;
         }
     }

@@ -48,13 +48,13 @@ public class SendTextToClipboard extends Activity
             clip = ClipData.newPlainText(intent.getType(), text);
             clipboard.setPrimaryClip(clip);
 
-            Toast.makeText(
-                    getApplicationContext(),
+            Toast.makeText(getApplicationContext(),
                     R.string.text_copied_to_clipboard,
                     Toast.LENGTH_SHORT)
                     .show();
         }
 
         finish();
+        overridePendingTransition(0, 0);
     }
 }

@@ -19,7 +19,7 @@
 
 package org.proninyaroslav.libretorrent.adapters;
 
-import android.support.v7.widget.RecyclerView;
+import androidx.recyclerview.widget.RecyclerView;
 
 import org.proninyaroslav.libretorrent.core.filetree.FileNode;
 
@@ -43,7 +43,7 @@ public abstract class BaseFileListAdapter<VH extends RecyclerView.ViewHolder, F 
     {
         this.files.addAll(files);
         Collections.sort(this.files);
-        notifyItemRangeInserted(0, files.size() - 1);
+        notifyItemRangeInserted(0, files.size());
     }
 
     public void clearFiles()
@@ -51,7 +51,6 @@ public abstract class BaseFileListAdapter<VH extends RecyclerView.ViewHolder, F 
         int size = files.size();
         if (size > 0) {
             files.clear();
-
             this.notifyItemRangeRemoved(0, size);
         }
     }

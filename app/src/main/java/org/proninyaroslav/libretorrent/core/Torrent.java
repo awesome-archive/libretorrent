@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2018 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -21,9 +21,12 @@ package org.proninyaroslav.libretorrent.core;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import androidx.annotation.NonNull;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import org.libtorrent4j.Priority;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 /*
@@ -34,48 +37,55 @@ public class Torrent implements Parcelable, Comparable<Torrent>
 {
     /* Usually torrent SHA-1 hash */
     private String id;
-    /* Path to the torrent file */
-    private String torrentFile;
+    /* Path to the torrent file (or magnet URI if downloadingMetadata = true)*/
+    private String source;
     private String downloadPath;
     /*
      * The index position in array must be
      * equal to the priority position in array
      */
-    private List<Integer> filePriorities;
+    private List<Priority> filePriorities;
     private String torrentName;
     private boolean sequentialDownload = false;
     private boolean finished = false;
     private boolean paused = false;
+    private boolean downloadingMetadata = false;
+    private long dateAdded;
+    private String error;
 
     public Torrent(String id, String torrentName,
-                   Collection<Integer> filePriorities,
-                   String downloadPath)
+                   List<Priority> filePriorities,
+                   String downloadPath, long dateAdded)
     {
-        this(id, null, torrentName, filePriorities, downloadPath);
+        this(id, null, torrentName, filePriorities, downloadPath, dateAdded);
     }
 
-    public Torrent(String id, String torrentFile,
+    public Torrent(String id, String source,
                    String torrentName,
-                   Collection<Integer> filePriorities,
-                   String downloadPath)
+                   List<Priority> filePriorities,
+                   String downloadPath, long dateAdded)
     {
         this.id = id;
-        this.torrentFile = torrentFile;
+        this.source = source;
         this.torrentName = torrentName;
-        this.filePriorities = new ArrayList<>(filePriorities);
+        this.filePriorities = filePriorities;
         this.downloadPath = downloadPath;
+        this.dateAdded = dateAdded;
     }
 
     public Torrent(Parcel source)
     {
         id = source.readString();
-        torrentFile = source.readString();
+        this.source = source.readString();
         downloadPath = source.readString();
-        filePriorities = source.readArrayList(Integer.class.getClassLoader());
+        filePriorities = source.readArrayList(Priority.class.getClassLoader());
         torrentName = source.readString();
         sequentialDownload = source.readByte() != 0;
         finished = source.readByte() != 0;
         paused = source.readByte() != 0;
+        downloadingMetadata = source.readByte() != 0;
+        dateAdded = source.readLong();
+        error = source.readString();
     }
 
     public String getId()
@@ -98,24 +108,24 @@ public class Torrent implements Parcelable, Comparable<Torrent>
         torrentName = name;
     }
 
-    public String getTorrentFilePath()
+    public String getSource()
     {
-        return torrentFile;
+        return source;
     }
 
-    public void setTorrentFilePath(String path)
+    public void setSource(String source)
     {
-        torrentFile = path;
+        this.source = source;
     }
 
-    public List<Integer> getFilePriorities()
+    public List<Priority> getFilePriorities()
     {
         return filePriorities;
     }
 
-    public void setFilePriorities(Collection<Integer> priorities)
+    public void setFilePriorities(List<Priority> priorities)
     {
-        filePriorities = new ArrayList<>(priorities);
+        filePriorities = priorities;
     }
 
     public String getDownloadPath()
@@ -158,6 +168,36 @@ public class Torrent implements Parcelable, Comparable<Torrent>
         this.paused = paused;
     }
 
+    public boolean isDownloadingMetadata()
+    {
+        return downloadingMetadata;
+    }
+
+    public void setDownloadingMetadata(boolean downloadingMetadata)
+    {
+        this.downloadingMetadata = downloadingMetadata;
+    }
+
+    public long getDateAdded()
+    {
+        return dateAdded;
+    }
+
+    public void setDateAdded(long datetime)
+    {
+        this.dateAdded = datetime;
+    }
+
+    public String getError()
+    {
+        return error;
+    }
+
+    public void setError(String error)
+    {
+        this.error = error;
+    }
+
     @Override
     public int describeContents()
     {
@@ -168,13 +208,16 @@ public class Torrent implements Parcelable, Comparable<Torrent>
     public void writeToParcel(Parcel dest, int flags)
     {
         dest.writeString(id);
-        dest.writeString(torrentFile);
+        dest.writeString(source);
         dest.writeString(downloadPath);
         dest.writeList(filePriorities);
         dest.writeString(torrentName);
         dest.writeByte((byte) (sequentialDownload ? 1 : 0));
         dest.writeByte((byte) (finished ? 1 : 0));
         dest.writeByte((byte) (paused ? 1 : 0));
+        dest.writeByte((byte) (downloadingMetadata ? 1 : 0));
+        dest.writeLong(dateAdded);
+        dest.writeString(error);
     }
 
     public static final Parcelable.Creator<Torrent> CREATOR =
@@ -194,7 +237,7 @@ public class Torrent implements Parcelable, Comparable<Torrent>
             };
 
     @Override
-    public int compareTo(Torrent another)
+    public int compareTo(@NonNull Torrent another)
     {
         return torrentName.compareTo(another.getName());
     }
@@ -212,17 +255,19 @@ public class Torrent implements Parcelable, Comparable<Torrent>
     }
 
     @Override
-    public String toString()
-    {
+    public String toString() {
         return "Torrent{" +
                 "id='" + id + '\'' +
-                ", torrentFile='" + torrentFile + '\'' +
+                ", source='" + source + '\'' +
                 ", downloadPath='" + downloadPath + '\'' +
                 ", filePriorities=" + filePriorities +
                 ", torrentName='" + torrentName + '\'' +
                 ", sequentialDownload=" + sequentialDownload +
                 ", finished=" + finished +
                 ", paused=" + paused +
+                ", downloadingMetadata=" + downloadingMetadata +
+                ", dateAdded=" + SimpleDateFormat.getDateTimeInstance().format(new Date(dateAdded)) +
+                ", error=" + error +
                 '}';
     }
 }

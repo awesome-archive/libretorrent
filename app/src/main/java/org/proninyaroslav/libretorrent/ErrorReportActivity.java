@@ -20,7 +20,7 @@
 package org.proninyaroslav.libretorrent;
 
 import android.os.Bundle;
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
@@ -42,16 +42,15 @@ public class ErrorReportActivity extends BaseCrashReportDialog
     {
         super.init(savedInstanceState);
 
-        if (getFragmentManager().findFragmentByTag(TAG_ERROR_DIALOG) == null) {
+        if (getSupportFragmentManager().findFragmentByTag(TAG_ERROR_DIALOG) == null) {
             ErrorReportAlertDialog errDialog = ErrorReportAlertDialog.newInstance(
                     getApplicationContext(),
                     getString(R.string.error),
                     getString(R.string.app_error_occurred),
                     Log.getStackTraceString(getException()),
-                    R.style.BaseTheme_Dialog,
                     this);
 
-            errDialog.show(getFragmentManager(), TAG_ERROR_DIALOG);
+            errDialog.show(getSupportFragmentManager(), TAG_ERROR_DIALOG);
         }
     }
 
@@ -60,10 +59,9 @@ public class ErrorReportActivity extends BaseCrashReportDialog
     {
         String comment = "";
         if (v != null) {
-            EditText editText = (EditText)v.findViewById(R.id.comment);
-            if (editText != null) {
+            EditText editText = v.findViewById(R.id.comment);
+            if (editText != null)
                 comment = editText.getText().toString();
-            }
         }
 
         sendCrash(comment, "");
