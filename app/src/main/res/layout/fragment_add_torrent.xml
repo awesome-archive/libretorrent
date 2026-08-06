@@ -1,51 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:layout_height="match_parent"
+    xmlns:tools="http://schemas.android.com/tools"
+    style="@style/ThemeOverlay.App.Surface"
+    android:id="@+id/coordinator_layout"
     android:layout_width="match_parent"
-    android:gravity="center">
+    android:layout_height="match_parent">
 
-    <include
-        layout="@layout/statusbar_kitkat"/>
-
-    <android.support.design.widget.CoordinatorLayout
-        android:id="@+id/coordinator_layout"
-        android:layout_height="match_parent"
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/app_bar_layout"
         android:layout_width="match_parent"
-        android:layout_below="@id/statusBarKitKat">
+        android:layout_height="wrap_content"
+        android:fitsSystemWindows="true">
 
-        <android.support.design.widget.AppBarLayout
+        <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/app_bar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            app:navigationIcon="@drawable/abc_ic_ab_back_material"
+            app:title="@string/add_torrent_title" />
 
-            <android.support.v7.widget.Toolbar
-                android:id="@+id/toolbar"
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                android:minHeight="?attr/actionBarSize"
-                android:background="?attr/colorPrimary"
-                app:layout_scrollFlags="scroll|enterAlways"
-                android:transitionName="actionBar"
-                app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
-                android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
+        <com.google.android.material.button.MaterialButtonToggleGroup
+            android:id="@+id/pages_toggle_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:minWidth="@dimen/text_filed_max_width"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginHorizontal="16dp"
+            app:selectionRequired="true"
+            app:singleSelection="true"
+            tools:checkedButton="@id/info_button">
 
-            <android.support.design.widget.TabLayout
-                android:id="@+id/add_torrent_tabs"
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                app:tabMode="fixed"
-                app:tabMaxWidth="0dp"
-                app:tabGravity="fill"
-                android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
-        </android.support.design.widget.AppBarLayout>
+            <Button
+                android:id="@+id/info_button"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/torrent_info" />
 
-        <android.support.v4.view.ViewPager
-            android:id="@+id/add_torrent_viewpager"
+            <Button
+                android:id="@+id/files_button"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/torrent_files" />
+        </com.google.android.material.button.MaterialButtonToggleGroup>
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/progress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/app_bar"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior"
-            android:background="@color/background_gray" />
-    </android.support.design.widget.CoordinatorLayout>
-</RelativeLayout>
+            android:indeterminate="true"
+            android:visibility="gone"
+            tools:visibility="visible" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/view_pager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+    <RelativeLayout
+        android:id="@+id/bottom_bar"
+        style="@style/ThemeOverlay.App.Surface"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom">
+
+        <com.google.android.material.divider.MaterialDivider
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentEnd="true" />
+
+        <Button
+            android:id="@+id/add_button"
+            style="?attr/materialButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerInParent="true"
+            android:layout_margin="16dp"
+            android:enabled="false"
+            android:text="@string/add"
+            app:icon="@drawable/ic_add_24px"
+            tools:enabled="true" />
+    </RelativeLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

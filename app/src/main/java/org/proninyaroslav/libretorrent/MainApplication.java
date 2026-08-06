@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2025 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -19,24 +19,78 @@
 
 package org.proninyaroslav.libretorrent;
 
-import android.app.Application;
+import android.annotation.SuppressLint;
 import android.content.Context;
+import android.database.CursorWindow;
+import android.util.Log;
+
+import android.app.Application;
 
 import org.acra.ACRA;
-import org.acra.ReportingInteractionMode;
-import org.acra.annotation.ReportsCrashes;
+import org.acra.config.CoreConfigurationBuilder;
+import org.acra.config.DialogConfigurationBuilder;
+import org.acra.config.MailSenderConfigurationBuilder;
+import org.acra.data.StringFormat;
+import org.proninyaroslav.libretorrent.core.RepositoryHelper;
+import org.proninyaroslav.libretorrent.core.settings.SettingsRepository;
+import org.proninyaroslav.libretorrent.core.utils.LocaleHelper;
+import org.proninyaroslav.libretorrent.core.utils.Utils;
+import org.proninyaroslav.libretorrent.ui.TorrentNotifier;
+import org.proninyaroslav.libretorrent.ui.errorreport.ErrorReportActivity;
 
-@ReportsCrashes(mailTo = "proninyaroslav@mail.ru",
-        mode = ReportingInteractionMode.DIALOG,
-        reportDialogClass = ErrorReportActivity.class)
+public class MainApplication extends Application {
+    public static final String TAG = MainApplication.class.getSimpleName();
 
-public class MainApplication extends Application
-{
     @Override
-    protected void attachBaseContext(Context base)
-    {
-        super.attachBaseContext(base);
+    protected void attachBaseContext(Context base) {
+        SettingsRepository pref = RepositoryHelper.getSettingsRepository(base);
+        String locale = pref.locale();
+        Context context = LocaleHelper.wrapContext(base, locale);
+        super.attachBaseContext(context);
+    }
 
-        ACRA.init(this);
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        CoreConfigurationBuilder builder = new CoreConfigurationBuilder();
+        builder
+                .withBuildConfigClass(BuildConfig.class)
+                .withReportFormat(StringFormat.JSON);
+        builder.withPluginConfigurations(new MailSenderConfigurationBuilder()
+                .withMailTo("proninyaroslav@mail.ru")
+                .build());
+        builder.withPluginConfigurations(new DialogConfigurationBuilder()
+                .withEnabled(true)
+                .withReportDialogClass(ErrorReportActivity.class)
+                .build());
+        // Set stub handler
+        if (Thread.getDefaultUncaughtExceptionHandler() == null) {
+            Thread.setDefaultUncaughtExceptionHandler((t, e) ->
+                    Log.e(TAG, "Uncaught exception in " + t + ": " + Log.getStackTraceString(e))
+            );
+        }
+        ACRA.init(this, builder);
+
+        increaseCursorWindowSize();
+
+        TorrentNotifier.getInstance(this).makeNotifyChans();
+
+        SettingsRepository pref = RepositoryHelper.getSettingsRepository(this);
+        LocaleHelper.setLocale(pref.locale());
+
+        Utils.applyNightMode(this);
+    }
+
+    /** @noinspection JavaReflectionMemberAccess*/
+    @SuppressLint("DiscouragedPrivateApi")
+    private void increaseCursorWindowSize() {
+        try {
+            var field = CursorWindow.class.getDeclaredField("sCursorWindowSize");
+            field.setAccessible(true);
+            field.set(null, 100 * 1024 * 1024); // 100MB
+        } catch (Exception e) {
+            Log.e(TAG, "Unable to increase CursorWindow size", e);
+        }
     }
 }

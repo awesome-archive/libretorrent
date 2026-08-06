@@ -1,73 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="BaseTheme">
+
+    <style name="App.Components.FloatingActionButton.Menu" parent="Widget.Material3.PopupMenu">
+        <item name="popupMenuBackground">@drawable/fab_menu_background</item>
+        <item name="textAppearanceSmallPopupMenu">
+            @style/App.Components.FloatingActionButton.Menu.Text
+        </item>
+        <item name="textAppearanceLargePopupMenu">
+            @style/App.Components.FloatingActionButton.Menu.Text
+        </item>
+        <item name="iconTint">?attr/colorOnSecondaryContainer</item>
     </style>
 
-    <style name="BaseTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryDark">@color/primary_dark</item>
-        <item name="colorAccent">@color/accent</item>
-        <item name="android:textColorPrimary">@color/text_primary</item>
-        <item name="android:textColorSecondary">@color/text_secondary</item>
-        <item name="android:textColorPrimaryInverse">@color/text_primary_inverse</item>
-        <item name="android:textColorSecondaryInverse">@color/text_secondary_inverse</item>
-        <item name="windowActionModeOverlay">true</item>
-        <item name="android:actionModeBackground">@color/action_mode</item>
-        <!-- For pre-Lollipop -->
-        <item name="actionModeBackground">@color/action_mode</item>
-        <item name="android:windowBackground">@color/background</item>
-        <item name="actionBarPopupTheme">@style/ThemeOverlay.AppCompat.Light</item>
-        <item name="android:alertDialogTheme">@style/BaseTheme.Dialog</item>
+    <style name="App.Components.ListItem" parent="Widget.Material3.CardView.Outlined">
+        <item name="strokeWidth">0dp</item>
+        <item name="cardBackgroundColor">@android:color/transparent</item>
+        <item name="checkedIcon">@null</item>
     </style>
 
-    <style name="BaseTheme.Dialog" parent="Theme.AppCompat.Light.Dialog">
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryDark">@color/primary_dark</item>
-        <item name="colorAccent">@color/accent</item>
+    <style name="App.Components.ListItem.Label" parent="TextAppearance.Material3.BodyLarge" />
+
+    <style name="App.Components.ListItem.SupportingText" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textColor">?android:attr/textColorSecondary</item>
     </style>
 
-    <style name="BaseTheme.HeaderText" parent="android:TextAppearance.Widget.TextView">
-        <item name="android:textColor">@color/accent</item>
-        <item name="android:textAllCaps">true</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:layout_marginBottom">5dp</item>
-        <item name="android:textSize">14sp</item>
+    <style name="App.Components.FloatingActionButton.Menu.Text" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textColor">?attr/colorOnSecondaryContainer</item>
     </style>
 
-    <style name="BaseTheme.TorrentInfoText" parent="android:TextAppearance.Widget.TextView">
-        <item name="android:textAppearance">@style/TextAppearance.AppCompat.Subhead</item>
-        <item name="android:textIsSelectable">true</item>
+    <style name="App.Components.ErrorReportDialog.StackTrace" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:typeface">monospace</item>
     </style>
 
-    <style name="BaseTheme.Toolbar.Spinner" parent="Widget.AppCompat.Light.Spinner.DropDown.ActionBar">
-        <item name="android:background">@null</item>
-        <item name="android:divider">@null</item>
+    <style name="App.Components.MaterialCard.Filled.SurfaceVariant" parent="Widget.Material3.CardView.Filled">
+        <item name="android:backgroundTint">?attr/colorSurfaceContainer</item>
     </style>
 
-    <style name="BaseTheme.ActionMode" parent="@style/Widget.AppCompat.ActionMode">
-        <item name="android:background">@color/action_mode</item>
-        <item name="android:titleTextStyle">@color/text_primary_inverse</item>
+    <style name="MaterialAlertDialog.App.Body.Text" parent="MaterialAlertDialog.Material3.Body.Text">
+        <item name="android:textAppearance">?attr/textAppearanceBodyLarge</item>
     </style>
 
-    <style name="BaseTheme.EmptyView" parent="@style/TextAppearance.AppCompat.Display1">
-        <item name="android:gravity">center</item>
-        <item name="android:visibility">gone</item>
+    <style name="Widget.App.SearchBar" parent="Widget.Material3.SearchBar">
+        <item name="elevation">0dp</item>
     </style>
 
-    <style name="Widget.MorphButton" parent="@android:style/Widget.Holo.Button.Small">
-        <item name="vc_startDrawable">@null</item>
-        <item name="vc_endDrawable">@null</item>
-        <item name="vc_autoStartAnimation">false</item>
+    <style name="Widget.App.AppBarLayout" parent="Widget.Material3.AppBarLayout">
+        <item name="elevation">0dp</item>
     </style>
 
-    <style name="BaseTheme.BaseThemeSettings" parent="@style/PreferenceFixTheme.Light.NoActionBar">
-        <item name="colorAccent">@color/accent</item>
-        <item name="colorPrimary">@color/primary</item>
-        <item name="colorPrimaryDark">@color/primary_dark</item>
-        <item name="android:windowBackground">@color/background</item>
-        <item name="preferenceCategory_marginBottom">0dp</item>
-        <item name="android:layout">@layout/fragment_custom_preference</item>
+    <style name="Preference.App.SwitchPreferenceCompat" parent="Preference.SwitchPreferenceCompat.Material">
+        <item name="widgetLayout">@layout/pref_widget_switch</item>
     </style>
 
-    <style name="BaseTheme.Settings" parent="BaseTheme.BaseThemeSettings">
+    <style name="Preference.App.DialogPreference.EditTextPreference" parent="Preference.DialogPreference.EditTextPreference.Material">
+        <item name="android:dialogLayout">@layout/pref_widget_dialog_edittext</item>
     </style>
+
+    <style name="App.Components.SwitchBar" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="android:padding">24dp</item>
+    </style>
+
+    <style name="TextAppearance.App.Components.SwitchBar" parent="TextAppearance.Material3.BodyLarge">
+        <item name="android:textColor">?attr/colorOnPrimaryContainer</item>
+    </style>
+
+    <style name="TextAppearance.App.SectionTitle" parent="TextAppearance.Material3.TitleSmall" />
 </resources>

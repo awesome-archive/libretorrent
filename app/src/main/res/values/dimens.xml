@@ -1,29 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <item name="match_parent" type="dimen">-1</item>
 
     <!-- Default screen margins, per the Android Design guidelines. -->
-    <dimen name="activity_horizontal_margin">16dp</dimen>
-    <dimen name="activity_vertical_margin">16dp</dimen>
-    <dimen name="activity_detail_vertical_margin">88dp</dimen>
 
     <!-- Fab button -->
-    <dimen name="fab_size">56dp</dimen>
-    <dimen name="button_elevation">2dp</dimen>
-    <dimen name="button_press_elevation">4dp</dimen>
-    <dimen name="navigation_drawer_width">240dp</dimen>
-
-    <!-- Toolbar Padding -->
-    <dimen name="tool_bar_top_padding">0dp</dimen>
-
-    <!-- Height of the status bar -->
-    <dimen name="status_bar_height">25dp</dimen>
-
-    <!--
-    Refer to App Widget Documentation for margin information
-    http://developer.android.com/guide/topics/appwidgets/index.html#CreatingLayout
-    -->
-    <dimen name="widget_margin">8dp</dimen>
+    <dimen name="fab_margin">16dp</dimen>
 
     <dimen name="min_width_dialog">300dp</dimen>
     <dimen name="dialog_padding">24dp</dimen>
+    <dimen name="list_pane_width">@dimen/match_parent</dimen>
+    <dimen name="details_pane_start_margin">0dp</dimen>
+    <dimen name="list_item_one_line_height">56dp</dimen>
+    <dimen name="list_item_two_lines_height">56dp</dimen>
+    <dimen name="list_item_three_lines_height">72dp</dimen>
+    <dimen name="search_bar_top_margin">48dp</dimen>
+    <dimen name="toolbar_top_margin">24dp</dimen>
+    <dimen name="search_bar_max_width">@dimen/text_filed_max_width</dimen>
+    <dimen name="text_filed_max_width">488dp</dimen>
+    <dimen name="bottom_bar_padding">80dp</dimen>
+    <dimen name="list_fab_padding">72dp</dimen>
 </resources>

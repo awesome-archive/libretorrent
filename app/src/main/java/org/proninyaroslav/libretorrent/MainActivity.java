@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Yaroslav Pronin <proninyaroslav@mail.ru>
+ * Copyright (C) 2016-2025 Yaroslav Pronin <proninyaroslav@mail.ru>
  *
  * This file is part of LibreTorrent.
  *
@@ -19,244 +19,198 @@
 
 package org.proninyaroslav.libretorrent;
 
-import android.Manifest;
-import android.app.Activity;
-import android.app.FragmentManager;
 import android.content.Intent;
-import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.app.ActivityCompat;
-import android.support.v7.app.AppCompatActivity;
-import android.view.View;
+import android.view.LayoutInflater;
 
+import androidx.activity.OnBackPressedCallback;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.navigation.NavController;
+import androidx.navigation.fragment.NavHostFragment;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+import org.proninyaroslav.libretorrent.core.RepositoryHelper;
+import org.proninyaroslav.libretorrent.core.settings.SettingsRepository;
 import org.proninyaroslav.libretorrent.core.utils.Utils;
-import org.proninyaroslav.libretorrent.dialogs.BaseAlertDialog;
-import org.proninyaroslav.libretorrent.fragments.DetailTorrentFragment;
-import org.proninyaroslav.libretorrent.fragments.MainFragment;
-import org.proninyaroslav.libretorrent.fragments.FragmentCallback;
-import org.proninyaroslav.libretorrent.services.TorrentTaskService;
-import org.proninyaroslav.libretorrent.settings.SettingsManager;
+import org.proninyaroslav.libretorrent.databinding.DialogLinkifyTextBinding;
+import org.proninyaroslav.libretorrent.receiver.NotificationReceiver;
+import org.proninyaroslav.libretorrent.ui.NavBarFragment;
+import org.proninyaroslav.libretorrent.ui.NavBarFragmentDirections;
+import org.proninyaroslav.libretorrent.ui.PermissionDeniedDialog;
+import org.proninyaroslav.libretorrent.ui.PermissionManager;
+import org.proninyaroslav.libretorrent.ui.base.ThemeActivity;
+import org.proninyaroslav.libretorrent.ui.home.HomeViewModel;
 
-import java.util.ArrayList;
-
-public class MainActivity extends AppCompatActivity
-        implements
-        BaseAlertDialog.OnClickListener,
-        FragmentCallback,
-        DetailTorrentFragment.Callback
-{
-    @SuppressWarnings("unused")
+public class MainActivity extends ThemeActivity {
     private static final String TAG = MainActivity.class.getSimpleName();
 
-    private static final String TAG_PERM_DIALOG = "perm_dialog";
-    private static final String TAG_PERM_DIALOG_IS_SHOW = "perm_dialog_is_show";
-    private static final String TAG_ACTION_SHUTDOWN = "action_shutdown";
+    private static final String KEY_PERMISSION_DENIED_DIALOG_REQUEST = TAG + "_permission_denied";
 
-    public static boolean permIsGranted = false;
-    private boolean permDialogIsShow = false;
-    private static final int REQUEST_EXTERNAL_STORAGE = 1;
-    private static String[] PERMISSIONS_STORAGE = {
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-    };
+    public static final String ACTION_ADD_TORRENT_SHORTCUT = "org.proninyaroslav.libretorrent.ADD_TORRENT_SHORTCUT";
+    public static final String ACTION_OPEN_TORRENT_DETAILS = "org.proninyaroslav.libretorrent.ACTION_OPEN_TORRENT_DETAILS";
+    public static final String KEY_TORRENT_ID = "torrent_id";
 
-    MainFragment mainFragment;
+    private NavController navController;
+    private HomeViewModel viewModel;
+    private PermissionManager permissionManager;
+    private SettingsRepository pref;
+
+    @NonNull
+    public NavController getRootNavController() {
+        return navController;
+    }
+
+    @Nullable
+    public NavBarFragment findNavBarFragment(@NonNull Fragment fragment) {
+        var currentFragment = fragment;
+        while (currentFragment != null) {
+            if (currentFragment instanceof NavBarFragment navBar) {
+                return navBar;
+            } else {
+                currentFragment = currentFragment.getParentFragment();
+            }
+        }
+        return null;
+    }
 
     @Override
-    public void onCreate(Bundle savedInstanceState)
-    {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (getIntent().getAction() != null && getIntent().getAction().equals(TAG_ACTION_SHUTDOWN)) {
-            finish();
+        Utils.enableEdgeToEdge(this);
 
+        var intentAction = getIntent().getAction();
+        if (intentAction != null && intentAction.equals(NotificationReceiver.NOTIFY_ACTION_SHUTDOWN_APP)) {
+            finish();
             return;
         }
 
-        if (savedInstanceState != null) {
-            permDialogIsShow = savedInstanceState.getBoolean(TAG_PERM_DIALOG_IS_SHOW);
-        }
+        getSupportFragmentManager().setFragmentResultListener(
+                KEY_PERMISSION_DENIED_DIALOG_REQUEST,
+                this,
+                (requestKey, result) -> {
+                    var resultValue = (PermissionDeniedDialog.Result)
+                            result.getSerializable(PermissionDeniedDialog.KEY_RESULT_VALUE);
+                    if (resultValue != null) {
+                        switch (resultValue) {
+                            case RETRY -> permissionManager.requestPermissions();
+                            case DENIED -> permissionManager.setDoNotAskStorage(true);
+                        }
+                    }
+                }
+        );
 
-        verifyStoragePermissions(this);
+        ViewModelProvider provider = new ViewModelProvider(this);
+        viewModel = provider.get(HomeViewModel.class);
+        permissionManager = new PermissionManager(this, new PermissionManager.Callback() {
+            @Override
+            public void onStorageResult(boolean isGranted, boolean shouldRequestStoragePermission) {
+                if (!isGranted && shouldRequestStoragePermission) {
+                    var action = NavBarFragmentDirections
+                            .actionPermissionDeniedDialog(KEY_PERMISSION_DENIED_DIALOG_REQUEST);
+                    navController.navigate(action);
+                }
+            }
 
-        SettingsManager.initPreferences(getApplicationContext());
-        startService(new Intent(this, TorrentTaskService.class));
+            @Override
+            public void onNotificationResult(boolean isGranted, boolean shouldRequestNotificationPermission) {
+                permissionManager.setDoNotAskNotifications(!isGranted);
+                if (isGranted) {
+                    viewModel.restartForegroundNotification();
+                }
+            }
+        });
+        pref = RepositoryHelper.getSettingsRepository(getApplicationContext());
 
         setContentView(R.layout.activity_main);
 
-        Utils.showColoredStatusBar_KitKat(this);
+        showManageAllFilesWarningDialog();
 
-        FragmentManager fm = getFragmentManager();
-        mainFragment = (MainFragment) fm.findFragmentById(R.id.main_fragmentContainer);
-    }
-
-    @Override
-    public void onSaveInstanceState(Bundle outState)
-    {
-        super.onSaveInstanceState(outState);
-
-        outState.putBoolean(TAG_PERM_DIALOG_IS_SHOW, permDialogIsShow);
-    }
-
-    /*
-     * Changed in detail fragment.
-     */
-
-    @Override
-    public void onTorrentInfoChanged()
-    {
-        if (mainFragment == null) {
-            return;
+        var fm = getSupportFragmentManager();
+        var navHostFragment = (NavHostFragment) fm.findFragmentById(R.id.nav_host_fragment);
+        if (navHostFragment != null) {
+            navController = navHostFragment.getNavController();
         }
 
-        DetailTorrentFragment fragment = mainFragment.getCurrentDetailFragment();
-        if (fragment != null) {
-            fragment.onTorrentInfoChanged();
-        }
-    }
-
-    @Override
-    public void onTorrentInfoChangesUndone()
-    {
-        if (mainFragment == null) {
-            return;
+        var dest = navController.getCurrentDestination();
+        var dialogExists = dest != null && dest.getId() == R.id.permissionDeniedDialog;
+        if (!permissionManager.checkPermissions() && !dialogExists) {
+            permissionManager.requestPermissions();
         }
 
-        DetailTorrentFragment fragment = mainFragment.getCurrentDetailFragment();
-        if (fragment != null) {
-            fragment.onTorrentInfoChangesUndone();
-        }
-    }
-
-    @Override
-    public void onTorrentFilesChanged()
-    {
-        if (mainFragment == null) {
-            return;
-        }
-
-        DetailTorrentFragment fragment = mainFragment.getCurrentDetailFragment();
-        if (fragment != null) {
-            fragment.onTorrentFilesChanged();
-        }
-    }
-
-    @Override
-    public void onTrackersChanged(ArrayList<String> trackers, boolean replace)
-    {
-        if (mainFragment == null) {
-            return;
-        }
-
-        DetailTorrentFragment fragment = mainFragment.getCurrentDetailFragment();
-        if (fragment != null) {
-            fragment.onTrackersChanged(trackers, replace);
-        }
-    }
-
-    @Override
-    public void openFile(String relativePath)
-    {
-        if (mainFragment == null) {
-            return;
-        }
-
-        DetailTorrentFragment fragment = mainFragment.getCurrentDetailFragment();
-        if (fragment != null) {
-            fragment.openFile(relativePath);
-        }
-    }
-
-    @Override
-    public void fragmentFinished(Intent intent, ResultCode code)
-    {
-        switch (code) {
-            case OK:
-                finish();
-                break;
-            case CANCEL:
-            case BACK:
-                if (mainFragment != null) {
-                    mainFragment.resetCurOpenTorrent();
+        getOnBackPressedDispatcher().addCallback(new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (navController == null) {
+                    return;
                 }
-                break;
-            case SHUTDOWN:
-                Intent i = new Intent(getApplicationContext(), MainActivity.class);
-                i.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                i.setAction(TAG_ACTION_SHUTDOWN);
-                startActivity(i);
-        }
+                if (!navController.navigateUp()) {
+                    finish();
+                }
+            }
+        });
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[],
-                                           @NonNull int[] grantResults)
-    {
-        switch (requestCode) {
-            case REQUEST_EXTERNAL_STORAGE: {
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    permIsGranted = true;
-                } else {
-                    permIsGranted = false;
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
 
-                    if (getFragmentManager().findFragmentByTag(TAG_PERM_DIALOG) == null) {
-                        BaseAlertDialog permDialog = BaseAlertDialog.newInstance(
-                                getString(R.string.perm_denied_title),
-                                getString(R.string.perm_denied_warning),
-                                0,
-                                getString(R.string.yes),
-                                getString(R.string.no),
-                                null,
-                                R.style.BaseTheme_Dialog,
-                                this);
+        if (intent.getAction() != null
+                && intent.getAction().equals(NotificationReceiver.NOTIFY_ACTION_SHUTDOWN_APP)) {
+            finish();
+            return;
+        }
 
-                        permDialog.show(getFragmentManager(), TAG_PERM_DIALOG);
-                    }
+        setIntent(intent);
+
+        var navHostFragment = (NavHostFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.nav_host_fragment);
+        if (navHostFragment != null) {
+            for (var fragment : navHostFragment.getChildFragmentManager().getFragments()) {
+                if (fragment instanceof NavBarFragment navBarFragment) {
+                    navBarFragment.handleImplicitIntent();
+                    break;
                 }
-
-                break;
             }
         }
     }
 
-    /*
-     * Permission dialog.
-     */
-
     @Override
-    public void onPositiveClicked(@Nullable View v)
-    {
-        /* Nothing */
+    protected void onDestroy() {
+        if (viewModel != null) {
+            viewModel.requestStopEngine();
+        }
+
+        super.onDestroy();
     }
 
-    @Override
-    public void onNegativeClicked(@Nullable View v)
-    {
-        ActivityCompat.requestPermissions(this, PERMISSIONS_STORAGE, REQUEST_EXTERNAL_STORAGE);
-    }
-
-    @Override
-    public void onNeutralClicked(@Nullable View v)
-    {
-        /* Nothing */
-    }
-
-    public void verifyStoragePermissions(Activity activity)
-    {
-        /* Prevents duplication permission dialog */
-        if (permDialogIsShow) {
+    public void showManageAllFilesWarningDialog() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R
+                || Utils.hasManageExternalStoragePermission(getApplicationContext())
+                || !pref.showManageAllFilesWarningDialog()) {
             return;
         }
 
-        int permission = ActivityCompat.checkSelfPermission(activity, Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        pref.showManageAllFilesWarningDialog(false);
 
-        if (permission != PackageManager.PERMISSION_GRANTED) {
-            permDialogIsShow = true;
-            ActivityCompat.requestPermissions(activity, PERMISSIONS_STORAGE, REQUEST_EXTERNAL_STORAGE);
-        } else {
-            permIsGranted = true;
-        }
+        var binding = DialogLinkifyTextBinding.inflate(
+                LayoutInflater.from(this),
+                null,
+                false
+        );
+        binding.message.append(getString(R.string.manage_all_files_warning_dialog_description));
+        binding.message.append(Utils.getLineSeparator());
+        binding.message.append(getString(R.string.project_page));
+        new MaterialAlertDialogBuilder(this)
+                .setIcon(R.drawable.ic_warning_24px)
+                .setTitle(R.string.manage_all_files_warning_dialog_title)
+                .setView(binding.getRoot())
+                .setPositiveButton(R.string.ok, (dialog, which) -> dialog.dismiss())
+                .show();
     }
 }
